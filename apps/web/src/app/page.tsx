@@ -12,9 +12,13 @@ import {
   Search,
   Send,
   Sun,
-  Wallet,
 } from 'lucide-react';
-import { useTonConnectUI, useTonAddress } from '@tonconnect/ui-react';
+import dynamic from 'next/dynamic';
+
+const WalletConnectButton = dynamic(
+  () => import('@/components/terminal/WalletConnectButton'),
+  { ssr: false }
+);
 
 export default function Home() {
   const { isTelegram, triggerHaptic } = useTelegram();
@@ -22,8 +26,6 @@ export default function Home() {
     if (typeof document === 'undefined') return 'dark';
     return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
   });
-  const [tonConnectUI] = useTonConnectUI();
-  const walletAddress = useTonAddress();
 
   interface MarketData {
     priceUsd: number;
@@ -98,31 +100,7 @@ export default function Home() {
                 {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </button>
 
-              <div className="relative">
-                {walletAddress ? (
-                  <button
-                    onClick={() => {
-                      triggerHaptic('light');
-                      tonConnectUI.disconnect();
-                    }}
-                    className="hidden h-10 items-center gap-2 rounded-sm border border-editorial-border bg-editorial-card px-3 text-sm font-mono font-bold text-foreground transition-colors hover:border-editorial-border-hover sm:flex"
-                  >
-                    <Wallet className="h-4 w-4 text-editorial-accent" />
-                    <span>[{walletAddress.slice(0, 4)}...{walletAddress.slice(-4)}]</span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => {
-                      triggerHaptic('light');
-                      tonConnectUI.openModal();
-                    }}
-                    className="hidden h-10 items-center gap-2 rounded-sm border border-editorial-border bg-editorial-card px-3 text-sm font-mono font-bold text-foreground transition-colors hover:border-editorial-border-hover sm:flex"
-                  >
-                    <Wallet className="h-4 w-4 text-editorial-accent" />
-                    <span>[CONNECT WALLET]</span>
-                  </button>
-                )}
-              </div>
+              <WalletConnectButton />
 
               <a
                 href="https://t.me/tonlytics"
