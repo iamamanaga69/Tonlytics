@@ -27,6 +27,10 @@ const envSchema = z.object({
   // LLM AI integrations
   GEMINI_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
+  COINGECKO_API_KEY: z.string().optional(),
+  TONCENTER_API_KEY: z.string().optional(),
+  TONAPI_KEY: z.string().optional(),
+  ADMIN_ALLOWED_EMAILS: z.string().optional(),
   
   // Crawler security
   CRON_SECRET: z.string().default('dev_secret_token')
@@ -50,6 +54,10 @@ try {
     LOG_LEVEL: process.env.LOG_LEVEL,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    COINGECKO_API_KEY: process.env.COINGECKO_API_KEY,
+    TONCENTER_API_KEY: process.env.TONCENTER_API_KEY,
+    TONAPI_KEY: process.env.TONAPI_KEY,
+    ADMIN_ALLOWED_EMAILS: process.env.ADMIN_ALLOWED_EMAILS,
     CRON_SECRET: process.env.CRON_SECRET
   });
 } catch (error) {
@@ -107,6 +115,36 @@ export const VERIFIED_SOURCES: SourceSeed[] = [
   {
     name: 'STON.fi Announcements',
     url: 'https://t.me/s/stonfichannel',
+    source_type: 'telegram',
+    reliability_score: 4
+  },
+  {
+    name: 'TON Community',
+    url: 'https://t.me/s/toncoin',
+    source_type: 'telegram',
+    reliability_score: 5
+  },
+  {
+    name: 'TON Society',
+    url: 'https://t.me/s/tonsociety',
+    source_type: 'telegram',
+    reliability_score: 4
+  },
+  {
+    name: 'Fragment Updates',
+    url: 'https://t.me/s/fragment',
+    source_type: 'telegram',
+    reliability_score: 4
+  },
+  {
+    name: 'MyTonWallet',
+    url: 'https://t.me/s/mytonwallet_en',
+    source_type: 'telegram',
+    reliability_score: 4
+  },
+  {
+    name: 'DeDust Announcements',
+    url: 'https://t.me/s/dedust',
     source_type: 'telegram',
     reliability_score: 4
   }

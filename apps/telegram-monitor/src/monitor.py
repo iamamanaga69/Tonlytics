@@ -20,7 +20,7 @@ from telethon.tl.types import (
 )
 
 from .config import get_telegram_config, MEDIA_DIR, SESSION_FILE, MESSAGES_FILE
-from .channels import discover_joined_channels, refresh_channels
+from .channels import discover_joined_channels, refresh_channels, is_ton_relevant_text, classify_text_category
 from .storage import store
 
 # === Logging (safe for Windows) ===
@@ -178,21 +178,32 @@ async def _process_message(event_or_message, is_history: bool = False) -> None:
         channel_username = getattr(chat, "username", None) or ""
         channel_id = getattr(chat, "id", 0)
 
+        if not is_ton_relevant_text(text, channel_title, channel_username):
+            return
+
         # Look up category from our monitored list
-        category = "Uncategorized"
+        category = classify_text_category(text, channel_title, channel_username)
         for ch in _monitored_channels:
             if ch["id"] == channel_id:
-                category = ch["category"]
+                if category == "Ecosystem":
+                    category = ch["category"]
                 break
 
         # Download media if present
         media = await _download_media(message, channel_title)
+
+        source_url = (
+            f"https://t.me/{channel_username}/{message.id}"
+            if channel_username
+            else f"https://t.me/c/{str(channel_id).replace('-100', '')}/{message.id}"
+        )
 
         msg_data = {
             "message_id": message.id,
             "channel_id": channel_id,
             "channel": channel_username or channel_title,
             "channel_name": channel_title,
+            "source_url": source_url,
             "category": category,
             "text": text[:2000],
             "date": message.date.isoformat() if message.date else datetime.now(timezone.utc).isoformat(),

@@ -4,6 +4,7 @@ import { ai } from './ai';
 import { supabaseAdmin, isSupabaseConfigured } from 'database';
 import { fetchRssFeed, parseGithubReleases } from 'extraction';
 import type { Briefing, RawUpdate } from 'types';
+import { logError, logInfo, logWarn } from 'telemetry';
 
 export interface IngestionResult {
   status: 'inserted' | 'skipped' | 'failed';
@@ -53,9 +54,19 @@ export const news = {
         return { status: 'skipped', reason: 'not_relevant_to_ton', title };
       }
 
+      const isTelegramPost = sourceUrl.includes('t.me/');
+
       // 3. Web Scraping & Canonical Link Resolution
-      console.log(`[SERVICES/NEWS] Scraping metadata for canonical URL verification: ${sourceUrl}`);
-      const webMetadata = await scraping.extractMetadata(sourceUrl);
+      logInfo('[SERVICES/NEWS] Preparing source metadata', { sourceUrl, isTelegramPost });
+      const webMetadata = isTelegramPost
+        ? {
+            canonicalUrl: sourceUrl,
+            title,
+            description: content.slice(0, 500),
+            imageUrl: raw.overrideImageUrl || null,
+            siteName: sourceName,
+          }
+        : await scraping.extractMetadata(sourceUrl);
       const canonicalUrl = webMetadata.canonicalUrl || sourceUrl;
 
       // 4. Double check duplicate for the canonical URL
@@ -85,7 +96,9 @@ export const news = {
         if (!rawError && rawUpdate) {
           rawUpdateId = rawUpdate.id;
         } else {
-          console.warn('[SERVICES/NEWS] Failed to save raw_update record:', rawError);
+          logWarn('[SERVICES/NEWS] Failed to save raw_update record', {
+            reason: rawError?.message || 'unknown_error',
+          });
         }
       }
 
@@ -102,7 +115,7 @@ export const news = {
         created_at: new Date().toISOString()
       };
 
-      console.log('[SERVICES/NEWS] Summarizing article content via AI...');
+      logInfo('[SERVICES/NEWS] Summarizing article content');
       const enriched = await ai.processContent(mockRawUpdate);
 
       // Overwrite the title and date with scraped values if available
@@ -113,7 +126,7 @@ export const news = {
       let localImageUrl: string | null = null;
       const sourceImage = raw.overrideImageUrl || webMetadata.imageUrl;
       if (sourceImage) {
-        console.log(`[SERVICES/NEWS] Downloading external thumbnail locally: ${sourceImage}`);
+        logInfo('[SERVICES/NEWS] Downloading thumbnail locally', { sourceImage });
         localImageUrl = await scraping.saveImageLocally(sourceImage, finalSlug.slice(0, 50));
       }
 
@@ -162,14 +175,17 @@ export const news = {
         });
       }
 
-      console.log(`[SERVICES/NEWS] Successfully ingested briefing: "${finalTitle}"`);
+      logInfo('[SERVICES/NEWS] Successfully ingested briefing', {
+        briefingId: finalBrief.id,
+        title: finalTitle,
+      });
       return {
         status: 'inserted',
         briefingId: finalBrief.id,
         title: finalTitle
       };
     } catch (error) {
-      console.error(`[SERVICES/NEWS] Failed to process update for ${sourceUrl}:`, error);
+      logError(`[SERVICES/NEWS] Failed to process update for ${sourceUrl}`, error);
       return { status: 'failed', reason: error instanceof Error ? error.message : 'Unknown error', title };
     }
   },
@@ -178,7 +194,7 @@ export const news = {
    * Scrapes and crawls all active RSS and GitHub sources inline.
    */
   async runInlineCrawler(): Promise<{ processed: number; skipped: number; failed: number; details: IngestionResult[] }> {
-    console.log('[SERVICES/NEWS] Launching active sources inline crawler sweeps...');
+    logInfo('[SERVICES/NEWS] Launching active sources inline crawler sweeps');
     let processed = 0;
     let skipped = 0;
     let failed = 0;
@@ -186,15 +202,23 @@ export const news = {
 
     try {
       const sources = await db.getSources();
-      console.log(`[SERVICES/NEWS] Found ${sources.length} active sources to crawl.`);
+      logInfo('[SERVICES/NEWS] Found active sources to crawl', { count: sources.length });
 
       for (const source of sources) {
         if (!source.is_active || source.reliability_score < 3) {
-          console.log(`[SERVICES/NEWS] Skipping source "${source.name}" (Active: ${source.is_active}, Reliability: ${source.reliability_score})`);
+          logInfo('[SERVICES/NEWS] Skipping low-confidence source', {
+            sourceName: source.name,
+            active: source.is_active,
+            reliabilityScore: source.reliability_score,
+          });
           continue;
         }
 
-        console.log(`[SERVICES/NEWS] Crawling source "${source.name}" (${source.source_type}) -> ${source.url}`);
+        logInfo('[SERVICES/NEWS] Crawling source', {
+          sourceName: source.name,
+          sourceType: source.source_type,
+          sourceUrl: source.url,
+        });
 
         try {
           if (source.source_type === 'github') {
@@ -235,11 +259,11 @@ export const news = {
             }
           }
         } catch (sourceErr) {
-          console.error(`[SERVICES/NEWS] Failed crawling source "${source.name}":`, sourceErr);
+          logError(`[SERVICES/NEWS] Failed crawling source "${source.name}"`, sourceErr);
         }
       }
     } catch (err) {
-      console.error('[SERVICES/NEWS] Inline crawler pass failed:', err);
+      logError('[SERVICES/NEWS] Inline crawler pass failed', err);
     }
 
     return { processed, skipped, failed, details };

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { news } from '@/lib/services/news';
+import { logError } from 'telemetry';
 
 export async function POST(request: Request) {
   try {
@@ -20,6 +21,7 @@ export async function POST(request: Request) {
       media?: { type: string; path?: string; filename?: string } | null;
       message_id: number;
       views?: number;
+      source_url?: string;
     }> = body.messages || [];
 
     if (!messages.length) {
@@ -39,9 +41,9 @@ export async function POST(request: Request) {
       }
 
       // Generate a canonical source URL for the Telegram channel post
-      const sourceUrl = msg.channel 
+      const sourceUrl = msg.source_url || (msg.channel 
         ? `https://t.me/${msg.channel}/${msg.message_id}` 
-        : `https://t.me/unknown_channel/${msg.message_id}`;
+        : `https://t.me/unknown_channel/${msg.message_id}`);
 
       const sourceName = msg.channel_name || msg.channel || 'Verified Telegram Source';
 
@@ -82,7 +84,7 @@ export async function POST(request: Request) {
       details
     });
   } catch (error) {
-    console.error('[INGEST] Webhook route handler failed:', error);
+    logError('[INGEST] Webhook route handler failed', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Ingestion route failed' },
       { status: 500 }

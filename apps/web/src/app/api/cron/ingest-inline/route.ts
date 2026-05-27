@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { news } from '@/lib/services/news';
+import { logError, logInfo } from 'telemetry';
 
 export async function GET(request: Request) {
   try {
@@ -11,7 +12,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    console.log('[CRON/INGEST] Starting inline crawler sweep via API endpoint...');
+    logInfo('[CRON/INGEST] Starting inline crawler sweep via API endpoint');
     const result = await news.runInlineCrawler();
     
     return NextResponse.json({
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
       ...result
     });
   } catch (error) {
-    console.error('[CRON/INGEST] Crawler route trigger failed:', error);
+    logError('[CRON/INGEST] Crawler route trigger failed', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Crawler route execution failed' },
       { status: 500 }

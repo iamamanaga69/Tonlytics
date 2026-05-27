@@ -1,53 +1,72 @@
+import { logWarn } from 'telemetry';
+
 export interface TonMarketData {
   priceUsd: number;
   change24h: number;
   volume24h: number;
   marketCap: number;
+  high24h: number | null;
+  low24h: number | null;
+  athUsd: number | null;
+  athDate: string | null;
+  atlUsd: number | null;
+  atlDate: string | null;
   lastUpdated: string;
-  source: 'coingecko' | 'fallback-cache' | 'mock-preset';
+  source: 'coingecko' | 'fallback-cache';
 }
 
-// Module-level caching variables (persists in-memory during Next.js runtime)
+interface CoinGeckoMarketData {
+  current_price?: { usd?: number };
+  price_change_percentage_24h?: number;
+  total_volume?: { usd?: number };
+  market_cap?: { usd?: number };
+  high_24h?: { usd?: number };
+  low_24h?: { usd?: number };
+  ath?: { usd?: number };
+  ath_date?: { usd?: string };
+  atl?: { usd?: number };
+  atl_date?: { usd?: string };
+}
+
+interface CoinGeckoCoinResponse {
+  market_data?: CoinGeckoMarketData;
+  last_updated?: string;
+}
+
 let cachedMarketData: TonMarketData | null = null;
 let lastFetchTime = 0;
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache lifetime
+const CACHE_TTL_MS = 60 * 1000;
 
-// Hardcoded mock values as safety net
-const MOCK_MARKET_DATA: TonMarketData = {
-  priceUsd: 7.38,
-  change24h: 3.84,
-  volume24h: 312050900,
-  marketCap: 18510420900,
-  lastUpdated: new Date().toISOString(),
-  source: 'mock-preset'
-};
+function readNumber(value: number | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
 
 export const market = {
-  /**
-   * Fetches the latest TON market analytics, utilizing the in-memory cache
-   * to guarantee rapid responses and preserve CoinGecko API rate limits.
-   */
   async getMarketData(): Promise<TonMarketData> {
     const now = Date.now();
-    
-    // Return cache if it is still fresh
-    if (cachedMarketData && (now - lastFetchTime < CACHE_TTL_MS)) {
+
+    if (cachedMarketData && now - lastFetchTime < CACHE_TTL_MS) {
       return {
         ...cachedMarketData,
-        source: 'fallback-cache'
+        source: 'fallback-cache',
       };
     }
 
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      'User-Agent': 'Tonlytics-Market-Ticker/1.0',
+    };
+
+    if (process.env.COINGECKO_API_KEY) {
+      headers['x-cg-demo-api-key'] = process.env.COINGECKO_API_KEY;
+    }
+
     try {
-      // CoinGecko endpoint for TON coin metrics
       const response = await fetch(
-        'https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true',
+        'https://api.coingecko.com/api/v3/coins/the-open-network?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false',
         {
-          headers: {
-            'Accept': 'application/json',
-            'User-Agent': 'Tonlytics-Market-Ticker/1.0'
-          },
-          signal: AbortSignal.timeout(5000)
+          headers,
+          signal: AbortSignal.timeout(7000),
         }
       );
 
@@ -55,42 +74,47 @@ export const market = {
         throw new Error(`CoinGecko API returned status ${response.status}`);
       }
 
-      const json = await response.json();
-      const tonData = json['the-open-network'];
+      const json = (await response.json()) as CoinGeckoCoinResponse;
+      const marketData = json.market_data;
+      const priceUsd = readNumber(marketData?.current_price?.usd);
+      const volume24h = readNumber(marketData?.total_volume?.usd);
+      const marketCap = readNumber(marketData?.market_cap?.usd);
 
-      if (tonData && typeof tonData.usd === 'number') {
-        const newData: TonMarketData = {
-          priceUsd: tonData.usd,
-          change24h: tonData.usd_24h_change || 0,
-          volume24h: tonData.usd_24h_vol || 0,
-          marketCap: tonData.usd_market_cap || 0,
-          lastUpdated: new Date().toISOString(),
-          source: 'coingecko'
-        };
-
-        // Update local memory cache
-        cachedMarketData = newData;
-        lastFetchTime = now;
-        return newData;
+      if (priceUsd === null || volume24h === null || marketCap === null) {
+        throw new Error('CoinGecko response did not include required TON market fields');
       }
 
-      throw new Error('CoinGecko response was missing TON data structure');
+      const nextData: TonMarketData = {
+        priceUsd,
+        change24h: readNumber(marketData?.price_change_percentage_24h) ?? 0,
+        volume24h,
+        marketCap,
+        high24h: readNumber(marketData?.high_24h?.usd),
+        low24h: readNumber(marketData?.low_24h?.usd),
+        athUsd: readNumber(marketData?.ath?.usd),
+        athDate: marketData?.ath_date?.usd || null,
+        atlUsd: readNumber(marketData?.atl?.usd),
+        atlDate: marketData?.atl_date?.usd || null,
+        lastUpdated: json.last_updated || new Date().toISOString(),
+        source: 'coingecko',
+      };
+
+      cachedMarketData = nextData;
+      lastFetchTime = now;
+      return nextData;
     } catch (error) {
-      console.warn('[SERVICES/MARKET] Fetching CoinGecko TON price failed. Fallback triggered:', error);
-      
-      // If we have stale cache, serve it
+      logWarn('[SERVICES/MARKET] CoinGecko market fetch failed', {
+        reason: error instanceof Error ? error.message : 'unknown_error',
+      });
+
       if (cachedMarketData) {
         return {
           ...cachedMarketData,
-          source: 'fallback-cache'
+          source: 'fallback-cache',
         };
       }
 
-      // Final backup: mock stats
-      return {
-        ...MOCK_MARKET_DATA,
-        lastUpdated: new Date().toISOString()
-      };
+      throw error;
     }
-  }
+  },
 };

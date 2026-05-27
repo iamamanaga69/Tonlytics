@@ -11,6 +11,7 @@ import time
 import asyncio
 import logging
 import sys
+import os
 from pathlib import Path
 
 try:
@@ -32,9 +33,9 @@ logging.basicConfig(
 log = logging.getLogger("bridge")
 
 # Configuration
-INGEST_URL = "http://localhost:3000/api/ingest"
-CRON_SECRET = "dev_secret_token"
-BRIDGE_INTERVAL = 60  # seconds between sync cycles
+INGEST_URL = os.getenv("TONLYTICS_INGEST_URL", "http://localhost:3000/api/ingest")
+CRON_SECRET = os.getenv("CRON_SECRET", "dev_secret_token")
+BRIDGE_INTERVAL = int(os.getenv("BRIDGE_INTERVAL", "60"))
 SENT_TRACKER = Path(__file__).resolve().parent.parent / "data" / "sent_ids.json"
 
 

@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import { normalizeMediaUrl, verifyImageAccessibility, downloadAndOptimizeMedia } from 'media';
 import * as path from 'path';
+import { logError } from 'telemetry';
 
 export interface ExtractedMetadata {
   canonicalUrl: string;
@@ -65,7 +66,7 @@ export const scraping = {
                          $('meta[property="twitter:image"]').attr('content') || 
                          $('meta[name="twitter:image:src"]').attr('content');
 
-      let targetImg = ogImg || twitterImg;
+      const targetImg = ogImg || twitterImg;
 
       if (targetImg) {
         extractedImage = this.normalizeUrl(targetImg, finalUrl);
@@ -111,7 +112,7 @@ export const scraping = {
         siteName
       };
     } catch (error) {
-      console.error(`[SERVICES/SCRAPING] Metadata extraction failed for ${cleanUrl}:`, error);
+      logError(`[SERVICES/SCRAPING] Metadata extraction failed for ${cleanUrl}`, error);
       // Fallback metadata if scrape fails completely
       return {
         canonicalUrl: cleanUrl,
@@ -150,7 +151,7 @@ export const scraping = {
       }
       return null;
     } catch (error) {
-      console.error(`[SERVICES/SCRAPING] Failed to save image locally from ${url}:`, error);
+      logError(`[SERVICES/SCRAPING] Failed to save image locally from ${url}`, error);
       return null;
     }
   }

@@ -1,6 +1,7 @@
 import { dbService } from 'database';
-import { supabase, supabaseAdmin, isSupabaseConfigured } from 'database';
+import { supabase, isSupabaseConfigured } from 'database';
 import type { Briefing, RawUpdate, Source } from 'types';
+import { logError } from 'telemetry';
 
 export const db = {
   /**
@@ -10,7 +11,7 @@ export const db = {
     try {
       return await dbService.getSources();
     } catch (error) {
-      console.error('[SERVICES/DB] Failed to fetch sources:', error);
+      logError('[SERVICES/DB] Failed to fetch sources', error);
       throw error;
     }
   },
@@ -22,7 +23,7 @@ export const db = {
     try {
       return await dbService.insertRawUpdates(updates);
     } catch (error) {
-      console.error('[SERVICES/DB] Failed to insert raw updates:', error);
+      logError('[SERVICES/DB] Failed to insert raw updates', error);
       throw error;
     }
   },
@@ -34,7 +35,7 @@ export const db = {
     try {
       return await dbService.getPendingRawUpdates(limit);
     } catch (error) {
-      console.error('[SERVICES/DB] Failed to fetch pending raw updates:', error);
+      logError('[SERVICES/DB] Failed to fetch pending raw updates', error);
       return [];
     }
   },
@@ -46,7 +47,7 @@ export const db = {
     try {
       await dbService.updateRawUpdateStatus(id, status, retryCount);
     } catch (error) {
-      console.error(`[SERVICES/DB] Failed to update raw update status (${id}):`, error);
+      logError(`[SERVICES/DB] Failed to update raw update status (${id})`, error);
       throw error;
     }
   },
@@ -62,7 +63,7 @@ export const db = {
 
     try {
       // 1. Check exact source URL matches
-      const { data: exactMatch, error: urlError } = await supabase
+      const { data: exactMatch } = await supabase
         .from('briefings')
         .select('id')
         .eq('source_url', sourceUrl)
@@ -74,7 +75,7 @@ export const db = {
       const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
       const normalizedTitle = title.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
 
-      const { data: recentBriefings, error: titleError } = await supabase
+      const { data: recentBriefings } = await supabase
         .from('briefings')
         .select('title')
         .gte('published_at', cutoff);
@@ -89,7 +90,7 @@ export const db = {
 
       return false;
     } catch (error) {
-      console.error('[SERVICES/DB] Error checking duplicates:', error);
+      logError('[SERVICES/DB] Error checking duplicates', error);
       return false;
     }
   },
@@ -101,7 +102,7 @@ export const db = {
     try {
       return await dbService.insertBriefing(briefing);
     } catch (error) {
-      console.error('[SERVICES/DB] Failed to insert briefing:', error);
+      logError('[SERVICES/DB] Failed to insert briefing', error);
       throw error;
     }
   },
@@ -129,7 +130,7 @@ export const db = {
         height: asset.height
       });
     } catch (error) {
-      console.error('[SERVICES/DB] Failed to log media asset:', error);
+      logError('[SERVICES/DB] Failed to log media asset', error);
     }
   }
 };

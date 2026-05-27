@@ -4,6 +4,7 @@ Thread-safe local JSON storage for ingested Telegram messages and media files.
 """
 import json
 import asyncio
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -11,6 +12,7 @@ from typing import Optional
 from .config import MESSAGES_FILE, MEDIA_DIR
 
 _lock = asyncio.Lock()
+log = logging.getLogger("storage")
 
 
 class MessageStore:
@@ -40,7 +42,7 @@ class MessageStore:
                 encoding="utf-8",
             )
         except OSError as e:
-            print(f"[STORAGE] Failed to persist messages: {e}")
+            log.warning(f"[STORAGE] Failed to persist messages: {e}")
 
     async def add_message(self, msg: dict) -> None:
         """Add a message to the store (deduplicates by message_id + channel)."""

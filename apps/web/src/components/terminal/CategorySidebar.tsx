@@ -43,13 +43,13 @@ export default function CategorySidebar() {
   return (
     <>
       <aside id="coverage" className="hidden lg:flex flex-col gap-5">
-        <section className="editorial-card rounded-sm p-4">
+        <section className="editorial-card rounded-2xl p-4">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xs font-extrabold uppercase text-editorial-text-subtle">Coverage</h2>
+            <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#7D8597]">Coverage</h2>
             <Gem className="h-4 w-4 text-editorial-accent" />
           </div>
 
-          <div className="grid gap-1">
+          <div className="grid gap-1.5">
             {CATEGORIES.map((cat) => {
               const isActive = selectedCategory === cat.id;
               const Icon = cat.icon;
@@ -59,18 +59,23 @@ export default function CategorySidebar() {
                   key={cat.id}
                   onClick={() => handleCategorySelect(cat.id)}
                   className={clsx(
-                    'group grid grid-cols-[28px_1fr] gap-3 rounded-sm border px-3 py-3 text-left transition-colors',
+                    'group grid grid-cols-[32px_1fr] gap-3 rounded-xl border p-2.5 text-left transition-all duration-300 cursor-pointer',
                     isActive
-                      ? 'border-editorial-accent bg-editorial-accent-bg text-foreground'
-                      : 'border-transparent text-editorial-text-subtle hover:border-editorial-border hover:text-foreground'
+                      ? 'border-[#0098EA]/40 bg-[#0098EA]/10 text-[#F5F7FA] shadow-[0_0_15px_rgba(0,152,234,0.1)]'
+                      : 'border-transparent text-[#AAB3C5] hover:border-editorial-border hover:bg-[#111827]/40 hover:text-[#F5F7FA]'
                   )}
                 >
-                  <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-sm bg-editorial-muted">
-                    <Icon className="h-4 w-4 text-editorial-accent" />
+                  <span className={clsx(
+                    'mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg transition-colors',
+                    isActive 
+                      ? 'bg-[#0098EA]/20 text-[#0098EA]' 
+                      : 'bg-[#111827]/60 text-[#7D8597] group-hover:bg-[#0098EA]/10 group-hover:text-[#0098EA]'
+                  )}>
+                    <Icon className="h-4 w-4" />
                   </span>
                   <span>
                     <span className="block text-sm font-extrabold">{cat.label}</span>
-                    <span className="mt-0.5 block text-xs leading-snug text-editorial-text-subtle">{cat.description}</span>
+                    <span className="mt-0.5 block text-xs leading-snug text-[#7D8597] group-hover:text-[#AAB3C5]">{cat.description}</span>
                   </span>
                 </button>
               );
@@ -78,10 +83,10 @@ export default function CategorySidebar() {
           </div>
         </section>
 
-        <section id="trending" className="editorial-card rounded-sm p-4">
+        <section id="trending" className="editorial-card rounded-2xl p-4">
           <div className="mb-4 flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-editorial-accent" />
-            <h2 className="text-xs font-extrabold uppercase text-editorial-text-subtle">Trending in TON</h2>
+            <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#7D8597]">Trending in TON</h2>
           </div>
           <div className="flex flex-wrap gap-2">
             {TRENDING_TOPICS.map((topic) => (
@@ -91,7 +96,7 @@ export default function CategorySidebar() {
                   setSelectedCategory('All');
                   triggerHaptic('light');
                 }}
-                className="rounded-sm border border-editorial-border bg-editorial-card px-2.5 py-1.5 text-xs font-semibold text-editorial-text-subtle hover:border-editorial-border-hover hover:text-foreground"
+                className="rounded-lg border border-editorial-border bg-[#111827]/40 px-3 py-1.5 text-xs font-semibold text-[#AAB3C5] transition-all duration-300 hover:border-[#0098EA]/40 hover:bg-[#0098EA]/10 hover:text-[#F5F7FA]"
               >
                 {topic}
               </button>
@@ -100,8 +105,8 @@ export default function CategorySidebar() {
         </section>
       </aside>
 
-      <div className="lg:hidden -mx-4 mb-1 border-b border-editorial-border px-4 pb-3">
-        <div className="mask-gradient-right flex gap-3 overflow-x-auto">
+      <div className="lg:hidden -mx-4 mb-1 border-b border-editorial-border/60 px-4 pb-3">
+        <div className="mask-gradient-right flex gap-3 overflow-x-auto pb-1">
           {CATEGORIES.map((cat) => {
             const isActive = selectedCategory === cat.id;
             return (
@@ -109,10 +114,10 @@ export default function CategorySidebar() {
                 key={cat.id}
                 onClick={() => handleCategorySelect(cat.id)}
                 className={clsx(
-                  'shrink-0 border-b-2 px-1 pb-2 text-sm font-extrabold transition-colors',
+                  'shrink-0 border-b-2 px-2 pb-1.5 text-sm font-extrabold transition-all duration-300',
                   isActive
-                    ? 'border-editorial-accent text-foreground'
-                    : 'border-transparent text-editorial-text-subtle'
+                    ? 'border-[#0098EA] text-[#F5F7FA]'
+                    : 'border-transparent text-[#7D8597] hover:text-[#AAB3C5]'
                 )}
               >
                 {cat.label}

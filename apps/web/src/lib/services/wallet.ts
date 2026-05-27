@@ -1,3 +1,5 @@
+import { logInfo } from 'telemetry';
+
 export interface WalletSession {
   address: string;
   network: string; // '-239' for mainnet, '-3' for testnet
@@ -19,7 +21,7 @@ export const wallet = {
       payload: string;
     }
   ): Promise<boolean> {
-    console.log(`[SERVICES/WALLET] Verifying wallet signature for address ${address}...`);
+    logInfo('[SERVICES/WALLET] Verifying wallet signature', { address });
     // Placeholder validation: check if timestamp is not expired (e.g. within 24h)
     const now = Math.floor(Date.now() / 1000);
     const isValidTimestamp = Math.abs(now - proof.timestamp) < 24 * 60 * 60;
@@ -31,6 +33,9 @@ export const wallet = {
    * Stub to track connected wallet addresses and save state.
    */
   async recordWalletConnection(session: WalletSession): Promise<void> {
-    console.log(`[SERVICES/WALLET] Wallet connected: ${session.address} on network ${session.network}`);
+    logInfo('[SERVICES/WALLET] Wallet connected', {
+      address: session.address,
+      network: session.network,
+    });
   }
 };

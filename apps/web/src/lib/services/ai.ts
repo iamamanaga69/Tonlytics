@@ -1,5 +1,6 @@
 import { summarizeRawUpdate, isAiConfigured } from 'ai';
 import type { Briefing, RawUpdate } from 'types';
+import { logError } from 'telemetry';
 
 export const ai = {
   /**
@@ -24,7 +25,7 @@ export const ai = {
       
       return summary;
     } catch (error) {
-      console.error('[SERVICES/AI] Processing content failed:', error);
+      logError('[SERVICES/AI] Processing content failed', error);
       throw error;
     }
   },
@@ -61,7 +62,10 @@ export const ai = {
       'dedust',
       'getgems',
       'tact',
-      'funC',
+      'func',
+      'ton connect',
+      'telegram wallet',
+      'wallet v5',
       'jetton',
       't.me/'
     ];

@@ -29,10 +29,10 @@ export default function BriefingCard({ briefing, compact = false }: BriefingCard
   return (
     <article
       onClick={handleCardClick}
-      className="group grid cursor-pointer gap-4 rounded-sm border border-editorial-border bg-editorial-card p-3 transition-colors hover:border-editorial-border-hover sm:grid-cols-[190px_minmax(0,1fr)] sm:p-4"
+      className="group grid cursor-pointer gap-4 editorial-card editorial-card-hover p-4 sm:grid-cols-[190px_minmax(0,1fr)] sm:p-5 bg-[#111827]/40"
     >
       {briefing.image_url && !isImageBroken ? (
-        <div className="relative aspect-[16/10] overflow-hidden rounded-sm bg-editorial-muted sm:aspect-[4/3]">
+        <div className="relative aspect-[16/10] overflow-hidden rounded-xl bg-[#111827]/60 sm:aspect-[4/3]">
           <ImageWithFallback
             src={briefing.image_url}
             alt={briefing.title}
@@ -41,38 +41,38 @@ export default function BriefingCard({ briefing, compact = false }: BriefingCard
           />
         </div>
       ) : (
-        <div className="tone-grid flex aspect-[16/10] items-end rounded-sm border border-editorial-border bg-editorial-muted p-3 sm:aspect-[4/3]">
+        <div className="tone-grid flex aspect-[16/10] items-end rounded-xl border border-[#ffffff]/06 bg-[#111827]/60 p-4 sm:aspect-[4/3]">
           <span className="serif-title text-4xl font-black text-editorial-accent">{briefing.category.slice(0, 1)}</span>
         </div>
       )}
 
       <div className="flex min-w-0 flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-editorial-text-subtle">
-          <span className="font-extrabold text-editorial-accent">{briefing.category}</span>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-[#7D8597]">
+          <span className="font-extrabold uppercase tracking-wider text-[#0098EA]">{briefing.category}</span>
           <span>{briefing.source_name || sourceHost || 'Verified source'}</span>
           <span>{getRelativeTime(briefing.published_at)}</span>
           <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {getReadingTime(briefing)} min read</span>
         </div>
 
-        <h2 className={compact ? 'serif-title text-lg font-black leading-tight text-foreground group-hover:text-editorial-accent' : 'serif-title text-xl font-black leading-tight text-foreground group-hover:text-editorial-accent md:text-2xl'}>
+        <h2 className={compact ? 'serif-title text-lg font-black leading-tight text-[#F5F7FA] group-hover:text-[#0098EA] transition-colors duration-300' : 'serif-title text-xl font-black leading-tight text-[#F5F7FA] group-hover:text-[#0098EA] transition-colors duration-300 md:text-2xl'}>
           {briefing.title}
         </h2>
 
-        <p className="line-clamp-2 text-sm leading-relaxed text-editorial-text-subtle md:text-[15px]">
+        <p className="line-clamp-2 text-sm leading-relaxed text-[#CBD5E1] md:text-[15px]">
           {briefing.briefing}
         </p>
 
-        <div className="border-l-2 border-editorial-border pl-3">
-          <p className="text-xs font-extrabold text-editorial-text-subtle">Why it matters</p>
-          <p className="line-clamp-2 text-sm font-semibold leading-relaxed text-foreground">
+        <div className="border-l-2 border-[#0098EA] pl-3">
+          <p className="text-[10px] font-extrabold uppercase tracking-wider text-[#7D8597]">Why it matters</p>
+          <p className="line-clamp-2 text-sm font-semibold leading-relaxed text-[#F5F7FA]">
             {briefing.why_it_matters}
           </p>
         </div>
 
-        <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-editorial-border pt-3 text-xs text-editorial-text-subtle">
+        <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-[#ffffff]/10 pt-3 text-xs text-[#7D8597]">
           <div className="flex flex-wrap gap-2">
             {briefing.tags.slice(0, 4).map((tag) => (
-              <span key={tag} className="rounded-sm bg-editorial-muted px-2 py-1 font-semibold">
+              <span key={tag} className="rounded-lg border border-[#ffffff]/08 bg-[#111827]/40 px-2.5 py-1 text-[10px] font-semibold text-[#AAB3C5]">
                 {tag}
               </span>
             ))}
@@ -80,14 +80,14 @@ export default function BriefingCard({ briefing, compact = false }: BriefingCard
 
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1" title={trustLabel}>
-              <ShieldCheck className="h-3.5 w-3.5 text-editorial-accent" />
+              <ShieldCheck className="h-3.5 w-3.5 text-[#0098EA]" />
               {trustLabel}
             </span>
             <span className="flex items-center gap-1"><Eye className="h-3.5 w-3.5" /> {briefing.views_count}</span>
             <button
               type="button"
               onClick={(event) => event.stopPropagation()}
-              className="rounded-sm border border-editorial-border p-1.5 hover:border-editorial-border-hover hover:text-foreground"
+              className="rounded-lg border border-editorial-border p-1.5 text-[#AAB3C5] hover:border-[#0098EA]/40 hover:text-[#F5F7FA] hover:bg-[#0098EA]/10 transition-all duration-300 cursor-pointer"
               aria-label="Save story"
             >
               <Bookmark className="h-3.5 w-3.5" />

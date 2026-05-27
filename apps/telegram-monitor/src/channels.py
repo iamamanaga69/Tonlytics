@@ -15,7 +15,9 @@ log = logging.getLogger("monitor")
 TON_KEYWORDS = [
     "ton", "toncoin", "telegram", "wallet", "jetton", "nft",
     "defi", "dex", "ston", "dedust", "getgems", "tonkeeper",
-    "mini app", "tact", "func", "blockchain", "web3",
+    "mini app", "miniapp", "tact", "func", "blockchain", "web3",
+    "ton connect", "ton space", "mytonwallet", "fragment", "usdt",
+    "stablecoin", "validator", "staking", "tvm", "wallet v5",
 ]
 
 # Category classification based on channel name/description
@@ -36,6 +38,25 @@ CATEGORY_HINTS = {
     "app": "Mini Apps",
     "bot": "Mini Apps",
 }
+
+
+def is_ton_relevant_text(text: str, channel_title: str = "", username: str = "") -> bool:
+    """Return True when a message or its channel context is relevant to TON."""
+    combined = f"{text} {channel_title} {username}".lower()
+    return any(keyword in combined for keyword in TON_KEYWORDS)
+
+
+def classify_text_category(text: str, channel_title: str = "", username: str = "") -> str:
+    """Classify a message using both the post text and channel context."""
+    combined = f"{text} {channel_title} {username}".lower()
+    for keyword, category in CATEGORY_HINTS.items():
+        if keyword in combined:
+            return category
+    if "usdt" in combined or "stablecoin" in combined or "liquidity" in combined:
+        return "DeFi"
+    if "telegram" in combined or "fragment" in combined:
+        return "Integration"
+    return "Ecosystem"
 
 
 def _classify_category(title: str, username: str) -> str:

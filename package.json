@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace=web",
+    "dev": "node scripts/dev.js",
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "worker:dev": "npm run dev --workspace=worker",

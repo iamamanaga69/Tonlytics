@@ -38,7 +38,6 @@ export function useBriefings() {
         const { data, error: dbError } = await query;
         
         if (dbError) {
-          console.error('[HOOK] Supabase query error:', dbError);
           throw new Error(dbError.message);
         }
         
@@ -61,7 +60,6 @@ export function useBriefings() {
         }
       }
     } catch (err) {
-      console.error('[HOOK BRIEFINGS] Fetch failed:', err);
       setError(err instanceof Error ? err.message : 'Database communication failure');
     } finally {
       if (showLoading) setIsLoading(false);
@@ -70,7 +68,10 @@ export function useBriefings() {
 
   // Initial load and filter reactive updates
   useEffect(() => {
-    fetchBriefings(true);
+    const timer = window.setTimeout(() => {
+      void fetchBriefings(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [fetchBriefings]);
 
   // === SUPABASE REALTIME SUBSCRIPTION ===
@@ -89,7 +90,6 @@ export function useBriefings() {
           filter: 'is_published=eq.true',
         },
         (payload) => {
-          console.log('[REALTIME] New briefing received:', payload.new);
           const newBriefing = payload.new as Briefing;
           
           // Prepend to the feed immediately
@@ -114,9 +114,7 @@ export function useBriefings() {
           );
         }
       )
-      .subscribe((status) => {
-        console.log('[REALTIME] Subscription status:', status);
-      });
+      .subscribe();
 
     channelRef.current = channel;
 

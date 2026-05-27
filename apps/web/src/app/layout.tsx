@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     'USDT TON',
     'Web3 research',
   ],
-  authors: [{ name: 'Tonlytics Editorial Desk' }],
+  authors: [{ name: 'Tonlytics' }],
   metadataBase: new URL('https://tonlytics.xyz'),
   openGraph: {
     title: 'Tonlytics - Independent TON Ecosystem Coverage',
