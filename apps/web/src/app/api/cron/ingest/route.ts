@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getQueue } from 'queues';
 import { dbService } from 'database';
 import { logInfo, logError } from 'telemetry';
+import { news } from '@/lib/services/news';
 
 const CRON_SECRET = process.env.CRON_SECRET || 'dev_secret_token';
 
@@ -27,6 +28,22 @@ export async function GET(request: Request) {
       return NextResponse.json({
         success: true,
         message: 'No active trusted sources configured. Ingestion idle.'
+      });
+    }
+
+    // Run inline if REDIS_URL is not configured (Vercel serverless / low-memory local)
+    const hasRedis = !!process.env.REDIS_URL;
+    if (!hasRedis) {
+      console.log('[API CRON INGEST] REDIS_URL not configured. Executing inline crawler sweep...');
+      const inlineResult = await news.runInlineCrawler();
+      const duration = Date.now() - startTime;
+      return NextResponse.json({
+        success: true,
+        mode: 'inline',
+        records_processed: inlineResult.processed,
+        records_skipped: inlineResult.skipped,
+        records_failed: inlineResult.failed,
+        duration_ms: duration
       });
     }
 

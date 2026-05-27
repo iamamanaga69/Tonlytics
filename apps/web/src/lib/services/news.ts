@@ -134,7 +134,7 @@ export const news = {
         hallucination_probability: enriched.hallucination_probability,
         source_quality_score: enriched.source_quality_score,
         moderation_status: enriched.moderation_status || 'auto_approved',
-        image_url: localImageUrl || undefined,
+        image_url: localImageUrl || sourceImage || undefined,
         video_url: undefined,
         ecosystem_context: undefined,
         discussion_url: undefined,

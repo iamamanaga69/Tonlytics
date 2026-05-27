@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getQueue } from 'queues';
 import { dbService } from 'database';
 import { logInfo, logError } from 'telemetry';
+import { news } from '@/lib/services/news';
 
 const CRON_SECRET = process.env.CRON_SECRET || 'dev_secret_token';
 
@@ -27,6 +28,55 @@ export async function GET(request: Request) {
       return NextResponse.json({
         success: true,
         message: 'No pending updates found. Processing idle.'
+      });
+    }
+
+    // Run inline if REDIS_URL is not configured (Vercel serverless / low-memory local)
+    const hasRedis = !!process.env.REDIS_URL;
+    if (!hasRedis) {
+      console.log('[API CRON PROCESS] REDIS_URL not configured. Processing raw updates inline...');
+      let processed = 0;
+      let skipped = 0;
+      let failed = 0;
+      const details = [];
+
+      for (const rawUpdate of pendingUpdates) {
+        // Retrieve source name
+        const sources = await dbService.getSources();
+        const source = sources.find(s => s.id === rawUpdate.source_id);
+
+        const result = await news.processRawUpdate({
+          sourceId: rawUpdate.source_id,
+          sourceUrl: rawUpdate.source_url,
+          rawTitle: rawUpdate.raw_title,
+          rawContent: rawUpdate.raw_content,
+          publishDate: rawUpdate.publish_date,
+          sourceName: source?.name
+        });
+
+        details.push(result);
+
+        if (result.status === 'inserted') {
+          processed++;
+          await dbService.updateRawUpdateStatus(rawUpdate.id, 'processed');
+        } else if (result.status === 'skipped') {
+          skipped++;
+          await dbService.updateRawUpdateStatus(rawUpdate.id, 'filtered');
+        } else {
+          failed++;
+          await dbService.updateRawUpdateStatus(rawUpdate.id, 'failed', rawUpdate.retry_count + 1);
+        }
+      }
+
+      const duration = Date.now() - startTime;
+      return NextResponse.json({
+        success: true,
+        mode: 'inline',
+        records_processed: processed,
+        records_skipped: skipped,
+        records_failed: failed,
+        duration_ms: duration,
+        details
       });
     }
 
