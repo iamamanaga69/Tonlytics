@@ -1,0 +1,22 @@
+{
+  "name": "tonlytics-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=web",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "worker:dev": "npm run dev --workspace=worker",
+    "scheduler:dev": "npm run dev --workspace=scheduler",
+    "web:dev": "npm run dev --workspace=web",
+    "web:build": "npm run build --workspace=web",
+    "web:start": "npm run start --workspace=web"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  # Core database storage containing raw sources, briefings, and pgvector embeddings
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: tonlytics-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgresPassword}
+      POSTGRES_DB: ${DB_NAME:-tonlytics}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  # Background cache queue supporting BullMQ worker orchestrations
+  redis:
+    image: redis:7.2-alpine
+    container_name: tonlytics-redis
+    restart: always
+    command: redis-server --save 60 1 --loglevel warning
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redisdata:/data
+
+  # typo-tolerant instant search discovery index syncs
+  meilisearch:
+    image: getmeili/meilisearch:v1.6
+    container_name: tonlytics-meilisearch
+    restart: always
+    environment:
+      - MEILI_ENV=development
+      - MEILI_NO_ANALYTICS=true
+      - MEILI_MASTER_KEY=${MEILISEARCH_MASTER_KEY:-masterKey}
+    ports:
+      - "${MEILISEARCH_PORT:-7700}:7700"
+    volumes:
+      - meilidata:/meili_data
+
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local
+  meilidata:
+    driver: local

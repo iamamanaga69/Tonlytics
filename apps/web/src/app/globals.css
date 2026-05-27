@@ -1,0 +1,104 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+/* -------------------------------------------
+   Quiet Luxury Editorial Design Tokens
+   ------------------------------------------- */
+@theme {
+  --color-terminal-bg: #07090e;
+  --color-terminal-card: rgba(18, 22, 32, 0.4);
+  --color-terminal-border: rgba(248, 250, 252, 0.05);
+  --color-terminal-border-active: rgba(248, 250, 252, 0.12);
+  --color-accent-sky: #38bdf8;
+  --color-accent-indigo: #6366f1;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Outfit', system-ui, -apple-system, sans-serif;
+  
+  --animate-marquee: marquee 35s linear infinite;
+  --animate-pulse-subtle: pulse-subtle 4s ease-in-out infinite;
+
+  @keyframes marquee {
+    0% { transform: translateX(100%); }
+    100% { transform: translateX(-100%); }
+  }
+  @keyframes pulse-subtle {
+    0%, 100% { opacity: 0.9; }
+    50% { opacity: 0.5; }
+  }
+}
+
+/* -------------------------------------------
+   Typography & Layout Rhythm
+   ------------------------------------------- */
+:root {
+  --background: #07090e;
+  --foreground: #f1f5f9;
+  
+  /* Safe, muted fallback variables */
+  --color-hint: #64748b;
+  --color-link: #38bdf8;
+  --color-button: #1e293b;
+  --color-button-text: #f1f5f9;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+  letter-spacing: -0.015em;
+  line-height: 1.6;
+}
+
+h1, h2, h3, h4, .font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.025em;
+  font-weight: 700;
+}
+
+/* Subtle Scrollbar styles matching high-end terminals */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(248, 250, 252, 0.06);
+  border-radius: 99px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(248, 250, 252, 0.15);
+}
+
+/* -------------------------------------------
+   Premium Editorial UI PRIMITIVES
+   ------------------------------------------- */
+.glass-panel {
+  background: var(--color-terminal-card);
+  border: 1px solid var(--color-terminal-border);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.15);
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-panel:hover {
+  background: rgba(18, 22, 32, 0.55);
+  border-color: var(--color-terminal-border-active);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+  transform: translateY(-1px);
+}
+
+/* High-signal status indicator without heavy animations */
+.terminal-status-glow {
+  background-color: #10b981;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.3);
+}
+
+.mask-gradient-right {
+  mask-image: linear-gradient(to right, black 85%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
+}
