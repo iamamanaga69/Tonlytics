@@ -1,7 +1,10 @@
-import { getQueue } from 'queues';
-import { dbService } from 'database';
+import http from 'http';
+import { getQueue, getRedisConnection } from 'queues';
+import { dbService, isSupabaseConfigured, supabase } from 'database';
 import { logInfo, logError } from 'telemetry';
 import { VERIFIED_SOURCES } from 'config';
+
+const port = process.env.PORT || 3008;
 
 logInfo('[SCHEDULER] Starting Tonlytics Cron and Job Scheduler...');
 
@@ -34,9 +37,8 @@ async function seedVerifiedSources(): Promise<void> {
  * Sets up cron repetitions for BullMQ queues.
  */
 async function scheduleEcosystemCrawlers(): Promise<void> {
-  const ingestionQueue = getQueue('INGESTION');
-
   try {
+    const ingestionQueue = getQueue('INGESTION');
     const sources = await dbService.getSources();
     logInfo(`[SCHEDULER] Scheduling crawler tasks for ${sources.length} active sources.`);
 
@@ -73,22 +75,84 @@ async function scheduleEcosystemCrawlers(): Promise<void> {
  * Schedule daily maintenance sweeps and cache cleanups.
  */
 async function scheduleCleanupTrigger(): Promise<void> {
-  const cleanupQueue = getQueue('CLEANUP');
-  const cronPattern = '0 0 * * *'; // Every night at midnight
+  try {
+    const cleanupQueue = getQueue('CLEANUP');
+    const cronPattern = '0 0 * * *'; // Every night at midnight
 
-  logInfo(`[SCHEDULER] Registering daily cleanup maintenance cron | Cron: ${cronPattern}`);
+    logInfo(`[SCHEDULER] Registering daily cleanup maintenance cron | Cron: ${cronPattern}`);
 
-  await cleanupQueue.add(
-    'prune-stale-data',
-    { action: 'daily_prune' },
-    { repeat: { pattern: cronPattern } }
-  );
+    await cleanupQueue.add(
+      'prune-stale-data',
+      { action: 'daily_prune' },
+      { repeat: { pattern: cronPattern } }
+    );
+  } catch (error) {
+    logError('[SCHEDULER] Failed to schedule cleanup task:', error);
+  }
 }
 
 // Start orchestration
-(async () => {
-  await seedVerifiedSources();
-  await scheduleEcosystemCrawlers();
-  await scheduleCleanupTrigger();
-  logInfo('[SCHEDULER] All cron orchestrations registered successfully. Scheduler running.');
-})();
+const orchestrate = async () => {
+  try {
+    await seedVerifiedSources();
+    await scheduleEcosystemCrawlers();
+    await scheduleCleanupTrigger();
+    logInfo('[SCHEDULER] All cron orchestrations registered successfully. Scheduler running.');
+  } catch (err) {
+    logError('[SCHEDULER] Orchestration registration failed:', err);
+  }
+};
+
+// Start a simple HTTP server to keep the service running and satisfy health checks on Railway
+const server = http.createServer(async (req, res) => {
+  if (req.url === '/api/health' || req.url === '/health' || req.url === '/') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      status: 'healthy',
+      service: 'scheduler',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString()
+    }));
+    return;
+  }
+  
+  res.writeHead(404);
+  res.end('Not Found');
+});
+
+server.listen(port, async () => {
+  logInfo('==================================================');
+  logInfo(`[STARTUP] Service: scheduler`);
+  logInfo(`[STARTUP] Port: ${port}`);
+  logInfo(`[STARTUP] Environment: ${process.env.NODE_ENV || 'development'}`);
+  logInfo(`[STARTUP] Database Configured: ${!!process.env.DATABASE_URL}`);
+  logInfo(`[STARTUP] Supabase Configured: ${isSupabaseConfigured}`);
+
+  // 1. Supabase Check
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { error } = await supabase.from('briefings').select('id').limit(1);
+      if (error) throw error;
+      logInfo('[STARTUP] Supabase Connection: SUCCESSFUL');
+    } catch (err) {
+      logError('[STARTUP] Supabase Connection: FAILED', err);
+    }
+  } else {
+    logInfo('[STARTUP] Supabase Connection: SKIPPED (Not configured)');
+  }
+
+  // 2. Queue Status Check
+  try {
+    const redis = getRedisConnection();
+    const pong = await redis.ping();
+    logInfo(`[STARTUP] Redis Connection (Queues): SUCCESSFUL (${pong})`);
+  } catch (err) {
+    logError('[STARTUP] Redis Connection (Queues): FAILED', err);
+  }
+
+  logInfo('==================================================');
+  logInfo(`[SCHEDULER] Tonlytics Scheduler Server successfully running on port ${port}`);
+
+  // Run orchestration registration
+  await orchestrate();
+});

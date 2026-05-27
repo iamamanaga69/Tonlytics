@@ -1,6 +1,6 @@
 import { Worker, Job } from 'bullmq';
 import { getRedisConnection, QUEUE_NAMES, getQueue } from 'queues';
-import { dbService } from 'database';
+import { dbService, isSupabaseConfigured, supabase } from 'database';
 import { logInfo, logError, logWarn } from 'telemetry';
 import { indexBriefing, deindexBriefing } from 'search';
 import { calculateDuplicateProbability, generateTextEmbedding } from 'embeddings';
@@ -12,10 +12,62 @@ import { TRUST_THRESHOLDS } from 'config';
 import type { Briefing, RawUpdate } from 'types';
 import * as path from 'path';
 import * as fs from 'fs';
+import http from 'http';
+
+const port = process.env.PORT || 3009;
 
 logInfo('[WORKER] Bootstrapping Tonlytics 10-Worker Background Ecosystem Engine...');
 
 const connection = getRedisConnection();
+
+// Start a simple HTTP server to keep the service running and satisfy health checks on Railway
+const server = http.createServer((req, res) => {
+  if (req.url === '/api/health' || req.url === '/health' || req.url === '/') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      status: 'healthy',
+      service: 'worker',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString()
+    }));
+    return;
+  }
+  res.writeHead(404);
+  res.end('Not Found');
+});
+
+server.listen(port, async () => {
+  logInfo('==================================================');
+  logInfo(`[STARTUP] Service: worker`);
+  logInfo(`[STARTUP] Port: ${port}`);
+  logInfo(`[STARTUP] Environment: ${process.env.NODE_ENV || 'development'}`);
+  logInfo(`[STARTUP] Database Configured: ${!!process.env.DATABASE_URL}`);
+  logInfo(`[STARTUP] Supabase Configured: ${isSupabaseConfigured}`);
+
+  // 1. Supabase Check
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { error } = await supabase.from('briefings').select('id').limit(1);
+      if (error) throw error;
+      logInfo('[STARTUP] Supabase Connection: SUCCESSFUL');
+    } catch (err) {
+      logError('[STARTUP] Supabase Connection: FAILED', err);
+    }
+  } else {
+    logInfo('[STARTUP] Supabase Connection: SKIPPED (Not configured)');
+  }
+
+  // 2. Queue Status Check
+  try {
+    const pong = await connection.ping();
+    logInfo(`[STARTUP] Redis Connection (Queues): SUCCESSFUL (${pong})`);
+  } catch (err) {
+    logError('[STARTUP] Redis Connection (Queues): FAILED', err);
+  }
+
+  logInfo('==================================================');
+  logInfo(`[WORKER] Tonlytics Background Worker successfully running on port ${port}`);
+});
 
 // Whitelist and relevance helpers (mirrored from ingestion app)
 const TRUSTED_DOMAINS = ['ton.org', 'telegram.org', 'github.com', 'ston.fi', 'getgems.io', 'tether.to', 'tonkeeper.com'];
@@ -136,7 +188,7 @@ const IngestionWorker = new Worker(
             logInfo(`[WORKER] [INGESTION] Telegram channel scraped: ${posts.length} posts found, ${mapped.length} relevant, ${ingested} ingested.`);
           }
         } catch (tgErr) {
-          logWarn(`[WORKER] [INGESTION] Telegram scrape failed for ${sourceUrl}`, tgErr);
+          logError(`[WORKER] [INGESTION] Telegram scrape failed for ${sourceUrl}`, tgErr);
         }
       }
 
@@ -197,7 +249,7 @@ const DuplicateDetectionWorker = new Worker(
           if (prob > highestProb) highestProb = prob;
         } catch (embErr) {
           // If embedding API fails, skip this comparison (don't block the pipeline)
-          logWarn(`[WORKER] [DUPLICATE] Embedding comparison failed for briefing ${b.id}, skipping`, embErr);
+          logError(`[WORKER] [DUPLICATE] Embedding comparison failed for briefing ${b.id}, skipping`, embErr);
         }
       }
 
@@ -255,7 +307,7 @@ const ExtractionWorker = new Worker(
         ogDescription = ogData.description;
         logInfo(`[WORKER] [EXTRACTION] OpenGraph parsed: title="${ogTitle}", image=${ogImage ? 'found' : 'none'}`);
       } catch (ogErr) {
-        logWarn(`[WORKER] [EXTRACTION] OpenGraph extraction failed for ${sourceUrl}, continuing with raw data`, ogErr);
+        logError(`[WORKER] [EXTRACTION] OpenGraph extraction failed for ${sourceUrl}, continuing with raw data`, ogErr);
       }
 
       // Look up actual source record for name and reliability
@@ -379,7 +431,7 @@ const SemanticScoringWorker = new Worker(
         await dbService.insertBriefingEmbedding(briefingId, embedding);
         logInfo(`[WORKER] [SCORING] Embedding vector stored for briefing ${briefingId} (${embedding.length} dimensions).`);
       } catch (embErr) {
-        logWarn(`[WORKER] [SCORING] Embedding generation failed for ${briefingId}, continuing without vector storage`, embErr);
+        logError(`[WORKER] [SCORING] Embedding generation failed for ${briefingId}, continuing without vector storage`, embErr);
       }
 
       // Apply threshold checks using real scores
@@ -599,7 +651,7 @@ const CleanupWorker = new Worker(
           }
         }
       } catch (fsErr) {
-        logWarn('[WORKER] [CLEANUP] Media orphan scan encountered errors', fsErr);
+        logError('[WORKER] [CLEANUP] Media orphan scan encountered errors', fsErr);
       }
 
       // Log cleanup stats

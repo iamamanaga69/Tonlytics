@@ -3,18 +3,19 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "ts-node src/index.ts",
-    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "start": "npx tsx src/index.ts",
     "build": "tsc"
   },
   "dependencies": {
-    "ts-node": "^10.9.2"
-  },
-  "devDependencies": {
-    "typescript": "^5.0.0",
-    "types": "*",
+    "tsx": "^4.0.0",
+    "queues": "*",
     "database": "*",
     "telemetry": "*",
-    "config": "*"
+    "config": "*",
+    "types": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
   }
 }

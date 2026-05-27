@@ -7,16 +7,27 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "node scripts/dev.js",
+    "dev": "npm run dev --workspace=web",
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "worker:dev": "npm run dev --workspace=worker",
+    "worker:start": "npm run start --workspace=worker",
     "scheduler:dev": "npm run dev --workspace=scheduler",
+    "scheduler:start": "npm run start --workspace=scheduler",
+    "api:dev": "npm run dev --workspace=api",
+    "api:start": "npm run start --workspace=api",
+    "ingestion:dev": "npm run dev --workspace=ingestion",
+    "ingestion:start": "npm run start --workspace=ingestion",
+    "moderation:dev": "npm run dev --workspace=moderation",
+    "moderation:start": "npm run start --workspace=moderation",
     "web:dev": "npm run dev --workspace=web",
     "web:build": "npm run build --workspace=web",
     "web:start": "npm run start --workspace=web"
   },
   "devDependencies": {
     "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "tsx": "^4.22.3"
   }
 }

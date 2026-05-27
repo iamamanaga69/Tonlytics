@@ -1,7 +1,11 @@
-import { dbService } from 'database';
+import http from 'http';
+import { dbService, isSupabaseConfigured, supabase } from 'database';
 import { logInfo, logError, logWarn } from 'telemetry';
 import { TRUST_THRESHOLDS } from 'config';
 import type { Briefing } from 'types';
+import { getRedisConnection } from 'queues';
+
+const port = process.env.PORT || 3007;
 
 export type BriefingState = 
   | 'RAW' 
@@ -99,3 +103,54 @@ export class CurationStateMachine {
     }
   }
 }
+
+// Start a simple HTTP server to keep the service running and satisfy health checks on Railway
+const server = http.createServer(async (req, res) => {
+  if (req.url === '/api/health' || req.url === '/health' || req.url === '/') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      status: 'healthy',
+      service: 'moderation',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString()
+    }));
+    return;
+  }
+  
+  res.writeHead(404);
+  res.end('Not Found');
+});
+
+server.listen(port, async () => {
+  logInfo('==================================================');
+  logInfo(`[STARTUP] Service: moderation`);
+  logInfo(`[STARTUP] Port: ${port}`);
+  logInfo(`[STARTUP] Environment: ${process.env.NODE_ENV || 'development'}`);
+  logInfo(`[STARTUP] Database Configured: ${!!process.env.DATABASE_URL}`);
+  logInfo(`[STARTUP] Supabase Configured: ${isSupabaseConfigured}`);
+
+  // 1. Supabase Check
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { error } = await supabase.from('briefings').select('id').limit(1);
+      if (error) throw error;
+      logInfo('[STARTUP] Supabase Connection: SUCCESSFUL');
+    } catch (err) {
+      logError('[STARTUP] Supabase Connection: FAILED', err);
+    }
+  } else {
+    logInfo('[STARTUP] Supabase Connection: SKIPPED (Not configured)');
+  }
+
+  // 2. Queue Status Check
+  try {
+    const redis = getRedisConnection();
+    const pong = await redis.ping();
+    logInfo(`[STARTUP] Redis Connection (Queues): SUCCESSFUL (${pong})`);
+  } catch (err) {
+    logError('[STARTUP] Redis Connection (Queues): FAILED', err);
+  }
+
+  logInfo('==================================================');
+  logInfo(`[MODERATION] Tonlytics Moderation Service successfully running on port ${port}`);
+});
