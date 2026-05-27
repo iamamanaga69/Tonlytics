@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server';
+import { validateAdminRequest } from '@/lib/auth';
 import { dbService } from '@/lib/db/supabase';
 
 /**
  * GET /api/admin/moderation
  * Retrieves the quarantined briefings held in "pending_review" status
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const authError = validateAdminRequest(request);
+    if (authError) return authError;
+
     const pendingBriefings = await dbService.getPendingReviewBriefings();
     return NextResponse.json({
       success: true,
@@ -28,6 +32,9 @@ export async function GET() {
  */
 export async function POST(request: Request) {
   try {
+    const authError = validateAdminRequest(request);
+    if (authError) return authError;
+
     const body = await request.json();
     const { 
       briefingId, 

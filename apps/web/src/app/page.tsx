@@ -1,115 +1,195 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import BreakingBanner from '@/components/terminal/BreakingBanner';
 import CategorySidebar from '@/components/terminal/CategorySidebar';
 import BriefingFeed from '@/components/terminal/BriefingFeed';
 import { useTelegram } from '@/hooks/useTelegram';
-import { Send, Globe, Shield, Terminal, ArrowUpRight } from 'lucide-react';
+import {
+  Bookmark,
+  Moon,
+  Search,
+  Send,
+  Sun,
+  Wallet,
+} from 'lucide-react';
+import { useTonConnectUI, useTonAddress } from '@tonconnect/ui-react';
 
 export default function Home() {
-  const { isTelegram, tgUser, triggerHaptic } = useTelegram();
-  const [logoLoaded, setLogoLoaded] = useState(false);
+  const { isTelegram, triggerHaptic } = useTelegram();
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof document === 'undefined') return 'dark';
+    return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+  });
+  const [tonConnectUI] = useTonConnectUI();
+  const walletAddress = useTonAddress();
+
+  interface MarketData {
+    priceUsd: number;
+    change24h: number;
+    volume24h: number;
+    marketCap: number;
+  }
+
+  const [marketData, setMarketData] = useState<MarketData | null>(null);
 
   useEffect(() => {
-    // Small timeout to simulate brand initial loading state for fluid micro-motion
-    const timer = setTimeout(() => setLogoLoaded(true), 600);
-    return () => clearTimeout(timer);
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  useEffect(() => {
+    const fetchMarket = async () => {
+      try {
+        const res = await fetch('/api/market');
+        if (res.ok) {
+          const data = await res.json();
+          setMarketData(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch market data:', err);
+      }
+    };
+
+    fetchMarket();
+    const interval = setInterval(fetchMarket, 3 * 60 * 1000); // 3 mins poll
+    return () => clearInterval(interval);
   }, []);
 
+  const toggleTheme = () => {
+    triggerHaptic('light');
+    const newTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
+    document.documentElement.classList.toggle('dark', newTheme === 'dark');
+    localStorage.setItem('theme', newTheme);
+  };
+
   return (
-    <div className="flex-1 flex flex-col w-full relative min-h-screen bg-[#040609] selection:bg-sky-500/20 selection:text-sky-300">
-      
-      {/* Dynamic Background Glow Layer */}
-      <div className="absolute top-0 right-1/4 w-[500px] h-[500px] bg-sky-500/5 rounded-full filter blur-3xl pointer-events-none z-0" />
-      <div className="absolute bottom-1/4 left-1/4 w-[400px] h-[400px] bg-indigo-500/5 rounded-full filter blur-3xl pointer-events-none z-0" />
+    <div className="min-h-screen w-full bg-editorial-bg text-foreground">
+      <header className="sticky top-0 z-40 border-b border-editorial-border bg-editorial-card/95 backdrop-blur-xl">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4 md:px-6 lg:px-8">
+          <div className="flex items-center justify-between gap-4">
+            <Link href="/" className="flex items-center gap-3" aria-label="Tonlytics home">
+              <span className="flex h-10 w-10 items-center justify-center rounded-sm bg-editorial-accent text-sm font-black text-white dark:text-[#101722]">
+                T
+              </span>
+              <span className="flex flex-col">
+                <span className="serif-title text-2xl font-black leading-none md:text-3xl">Tonlytics</span>
+                <span className="mt-1 text-[11px] font-semibold text-editorial-text-subtle">
+                  Independent TON ecosystem coverage
+                </span>
+              </span>
+            </Link>
 
-      {/* 1. TOP HEADER NAVIGATION BAR (Redesigned with Logo System) */}
-      <header className="w-full bg-[#080b11]/30 backdrop-blur-md border-b border-slate-900/40 py-4 px-4 md:px-8 flex items-center justify-between z-45 shrink-0 relative">
-        
-        {/* Animated Brand Logo and Typographic Tag */}
-        <div className="flex items-center gap-3 group">
-          <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-slate-900 bg-slate-950 flex items-center justify-center transition-all duration-300 group-hover:border-sky-500/30">
-            {/* Animated Logo Image */}
-            <img
-              src="/images/tonlytics_logo.png"
-              alt="Tonlytics"
-              className={`w-full h-full object-cover transition-all duration-700 ${
-                logoLoaded ? 'opacity-85 scale-100' : 'opacity-0 scale-90'
-              }`}
-            />
-            {/* Loading Indicator Spinner Overlay */}
-            {!logoLoaded && (
-              <div className="absolute inset-0 border-2 border-slate-900 border-t-sky-500 animate-spin rounded-lg" />
-            )}
+            <nav className="hidden items-center gap-6 text-sm font-semibold text-editorial-text-subtle lg:flex">
+              <a href="#coverage" className="hover:text-foreground">Coverage</a>
+              <a href="#live-feed" className="hover:text-foreground">Live Feed</a>
+              <a href="#trending" className="hover:text-foreground">Trending</a>
+              <a href="/moderation" className="hover:text-foreground">Editorial Desk</a>
+            </nav>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={toggleTheme}
+                className="flex h-10 w-10 items-center justify-center rounded-sm border border-editorial-border bg-editorial-card text-editorial-text-subtle transition-colors hover:border-editorial-border-hover hover:text-foreground"
+                aria-label="Toggle color theme"
+              >
+                {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </button>
+
+              <div className="relative">
+                {walletAddress ? (
+                  <button
+                    onClick={() => {
+                      triggerHaptic('light');
+                      tonConnectUI.disconnect();
+                    }}
+                    className="hidden h-10 items-center gap-2 rounded-sm border border-editorial-border bg-editorial-card px-3 text-sm font-mono font-bold text-foreground transition-colors hover:border-editorial-border-hover sm:flex"
+                  >
+                    <Wallet className="h-4 w-4 text-editorial-accent" />
+                    <span>[{walletAddress.slice(0, 4)}...{walletAddress.slice(-4)}]</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      triggerHaptic('light');
+                      tonConnectUI.openModal();
+                    }}
+                    className="hidden h-10 items-center gap-2 rounded-sm border border-editorial-border bg-editorial-card px-3 text-sm font-mono font-bold text-foreground transition-colors hover:border-editorial-border-hover sm:flex"
+                  >
+                    <Wallet className="h-4 w-4 text-editorial-accent" />
+                    <span>[CONNECT WALLET]</span>
+                  </button>
+                )}
+              </div>
+
+              <a
+                href="https://t.me/tonlytics"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => triggerHaptic('light')}
+                className="flex h-10 items-center gap-2 rounded-sm bg-editorial-accent px-3 text-sm font-extrabold text-white transition-opacity hover:opacity-90 dark:text-[#101722]"
+              >
+                <Send className="h-4 w-4" />
+                <span className="hidden sm:inline">Telegram</span>
+              </a>
+            </div>
           </div>
-          
-          <div className="flex flex-col gap-0.5">
-            <span className="font-extrabold text-sm md:text-base tracking-widest font-display text-slate-200 uppercase group-hover:text-slate-100 transition-colors">
-              Tonlytics
-            </span>
-            <span className="text-[8px] font-bold text-slate-500 font-mono tracking-widest uppercase">
-              Ecosystem Intelligence
-            </span>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-editorial-border pt-3 text-xs text-editorial-text-subtle">
+            <div className="flex items-center gap-3">
+              <span className="font-extrabold text-foreground">TON ecosystem newsroom</span>
+              <span className="hidden h-1 w-1 rounded-full bg-editorial-border-hover sm:block" />
+              <span>{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1.5"><Search className="h-3.5 w-3.5" /> Research-grade search</span>
+              <span className="flex items-center gap-1.5"><Bookmark className="h-3.5 w-3.5" /> Optional saved feeds</span>
+            </div>
           </div>
-        </div>
 
-        {/* Action Controls & Admin Entry */}
-        <div className="flex items-center gap-3">
-          
-          {/* Curation Desk (Admin Access Portal Link) */}
-          <a
-            href="/moderation"
-            onClick={() => triggerHaptic('light')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#080c12]/50 border border-slate-900 hover:border-sky-500/20 text-[9px] font-mono font-bold text-slate-400 hover:text-sky-400 uppercase tracking-wider rounded-lg transition-all duration-200 cursor-pointer"
-          >
-            <Shield className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Curation Desk</span>
-          </a>
-
-          {/* Join telegram channel button */}
-          <a
-            href="https://t.me/tonlytics"
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => triggerHaptic('light')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-500/10 border border-sky-500/20 hover:bg-sky-500/15 text-[9px] font-mono font-bold text-sky-400 uppercase tracking-widest rounded-lg transition-all duration-200 cursor-pointer"
-          >
-            <Send className="w-3 h-3 text-sky-400" />
-            <span>Join Broadcast</span>
-          </a>
+          {marketData && (
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-editorial-border pt-3 text-xs font-mono">
+              <div className="flex items-center gap-2">
+                <span className="text-editorial-text-subtle">TON:</span>
+                <span className="font-extrabold text-foreground">${marketData.priceUsd.toFixed(2)}</span>
+                <span className={`font-extrabold ${marketData.change24h >= 0 ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'}`}>
+                  {marketData.change24h >= 0 ? '+' : ''}{marketData.change24h.toFixed(2)}%
+                </span>
+              </div>
+              <div className="hidden items-center gap-2 sm:flex">
+                <span className="text-editorial-text-subtle">VOL 24H:</span>
+                <span className="font-extrabold text-foreground">${(marketData.volume24h / 1e6).toFixed(1)}M</span>
+              </div>
+              <div className="hidden items-center gap-2 md:flex">
+                <span className="text-editorial-text-subtle">MCAP:</span>
+                <span className="font-extrabold text-foreground">${(marketData.marketCap / 1e9).toFixed(2)}B</span>
+              </div>
+              <div className="ml-auto flex items-center gap-1 text-[10px] text-editorial-text-subtle uppercase">
+                <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                Live Telemetry
+              </div>
+            </div>
+          )}
         </div>
       </header>
 
-      {/* 2. BREAKING NEWS SCROLLER TICKER */}
       <BreakingBanner />
 
-      {/* 3. MAIN TERMINAL CONTEXT BODY (Sidebar + Feed Layout Grid) */}
-      <main className="flex-1 max-w-6xl w-full mx-auto flex flex-col md:flex-row gap-8 py-5 md:py-8 px-4 md:px-8 relative z-10">
-        
-        {/* Adaptive Categories navigation */}
+      <main className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-6 md:px-6 lg:grid-cols-[245px_minmax(0,1fr)] lg:px-8 lg:py-8">
         <CategorySidebar />
-
-        {/* Live briefings stream feed with Hero Spotlight */}
         <BriefingFeed />
-
       </main>
 
-      {/* 5. MINIMAL DIGITAL TERMINAL FOOTER */}
       {!isTelegram && (
-        <footer className="w-full py-6 px-4 md:px-8 border-t border-slate-950/50 bg-[#040609] text-center text-xs text-slate-500 font-medium shrink-0 flex flex-col md:flex-row gap-3 items-center justify-between max-w-6xl mx-auto relative z-10">
-          <div className="flex items-center gap-2 font-mono text-[9px] tracking-wider uppercase text-slate-550">
-            <Globe className="w-3.5 h-3.5 text-slate-650" />
-            <span>Tonlytics Platform © 2026. Verified Ecosystem Intelligence.</span>
-          </div>
-          
-          <div className="flex items-center gap-4 text-slate-500 font-mono text-[9px] tracking-wider uppercase">
-            <a href="/moderation" className="hover:text-slate-450 transition-colors flex items-center gap-1">
-              <span>Admin Gateway</span>
-              <ArrowUpRight className="w-2.5 h-2.5" />
-            </a>
-            <span>•</span>
-            <a href="/disclaimer" className="hover:text-slate-450 transition-colors">Disclaimer</a>
+        <footer className="mx-auto w-full max-w-7xl border-t border-editorial-border px-4 py-7 text-sm text-editorial-text-subtle md:px-6 lg:px-8">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <p>Tonlytics, 2026. Independent coverage for the TON and Telegram ecosystem.</p>
+            <div className="flex gap-4">
+              <a href="/moderation" className="hover:text-foreground">Editorial Desk</a>
+              <a href="/disclaimer" className="hover:text-foreground">Disclaimer</a>
+            </div>
           </div>
         </footer>
       )}

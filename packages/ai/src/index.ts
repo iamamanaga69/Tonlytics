@@ -234,8 +234,8 @@ export async function summarizeRawUpdate(rawUpdate: RawUpdate): Promise<Omit<Bri
     source_quality_score = 96;
   }
 
-  // Artificial short delay to simulate AI processing in local dev
-  await new Promise(resolve => setTimeout(resolve, 800));
+
+  console.warn('[AI] No API keys configured. Returning mock briefing — content will require manual review.');
 
   return {
     raw_update_id: rawUpdate.id,
@@ -252,7 +252,7 @@ export async function summarizeRawUpdate(rawUpdate: RawUpdate): Promise<Omit<Bri
     readability_score,
     hallucination_probability,
     source_quality_score,
-    moderation_status: 'auto_approved',
+    moderation_status: 'pending_review',
     
     published_at: new Date().toISOString()
   };

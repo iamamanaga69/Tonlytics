@@ -1,14 +1,24 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTerminalStore } from '@/store/terminalStore';
 import { useBriefings } from '@/hooks/useBriefings';
-import BriefingCard from './BriefingCard';
-import { Search, RefreshCw, Layers, AlertCircle, Play, Eye } from 'lucide-react';
+import BriefingCard, { getReadingTime, getRelativeTime } from './BriefingCard';
+import { AlertCircle, ArrowUpRight, BarChart3, Clock, RefreshCw, Search, ShieldCheck, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTelegram } from '@/hooks/useTelegram';
 import ImageWithFallback from './ImageWithFallback';
+import type { Briefing, BriefingCategory } from '@/types';
+
+const SEARCH_SUGGESTIONS = ['Wallet v5', 'USDT', 'Mini Apps', 'TON Connect', 'Tact', 'STON.fi'];
+
+const CURATED_SECTIONS: { title: string; category?: BriefingCategory; note: string }[] = [
+  { title: 'TON Infrastructure', category: 'Infrastructure', note: 'Core protocol, wallets, tooling' },
+  { title: 'Mini Apps', category: 'Mini Apps', note: 'Telegram-native products and distribution' },
+  { title: 'DeFi & Stablecoins', category: 'DeFi', note: 'Liquidity, payments, market structure' },
+  { title: 'Telegram Integrations', category: 'Integration', note: 'Partnerships and platform surface area' },
+];
 
 export default function BriefingFeed() {
   const router = useRouter();
@@ -18,208 +28,317 @@ export default function BriefingFeed() {
   const [localSearch, setLocalSearch] = useState<string>(searchQuery);
   const [isHeroImageBroken, setIsHeroImageBroken] = useState(false);
 
-  // Debounce the search input to protect database capacity from query spam
   useEffect(() => {
     const timer = setTimeout(() => {
       setSearchQuery(localSearch);
-    }, 300);
+    }, 240);
     return () => clearTimeout(timer);
   }, [localSearch, setSearchQuery]);
 
-  // Sync local search when store resets
-  useEffect(() => {
-    setLocalSearch(searchQuery);
-  }, [searchQuery]);
-
-  // Framer Motion entry configurations
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: { staggerChildren: 0.05 }
-    }
-  } as const;
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 15 },
-    show: { 
-      opacity: 1, 
-      y: 0, 
-      transition: { type: 'spring', stiffness: 90, damping: 15 } 
-    }
-  } as const;
-
-  // Curation variables
-  const spotlightBriefing = briefings.length > 0 ? briefings[0] : null;
+  const spotlightBriefing = briefings[0] || null;
   const feedBriefings = searchQuery || briefings.length <= 1 ? briefings : briefings.slice(1);
 
+  const topicCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    briefings.forEach((briefing) => {
+      briefing.tags.slice(0, 4).forEach((tag) => {
+        counts.set(tag, (counts.get(tag) || 0) + 1);
+      });
+    });
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  }, [briefings]);
+
   return (
-    <div className="flex-1 flex flex-col gap-6 px-4 md:px-0">
-      
-      {/* 1. Search Input and Refresh Row */}
-      <div className="w-full flex items-center gap-3">
-        {/* Search Input Container */}
-        <div className="flex-1 relative glass-panel rounded-xl">
-          <Search className="w-4 h-4 text-slate-550 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={localSearch}
-            onChange={(e) => setLocalSearch(e.target.value)}
-            placeholder="Search verified ecosystem signals, protocols, metrics..."
-            className="w-full bg-transparent text-[11px] font-mono tracking-wide py-2.5 pl-10 pr-4 outline-none border border-transparent rounded-xl text-slate-200 placeholder:text-slate-550 focus:border-sky-500/20 transition-all duration-200"
-          />
-        </div>
-
-        {/* Sync/Refresh Action Button */}
-        <button
-          onClick={() => { triggerHaptic('light'); refresh(); }}
-          disabled={isLoading}
-          className="p-2.5 bg-slate-950/40 border border-slate-900/60 rounded-xl text-slate-500 hover:text-sky-400 hover:border-sky-500/25 active:bg-slate-950/60 transition-all duration-150 glass-panel shrink-0 cursor-pointer"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-        </button>
-      </div>
-
-      {/* 2. Loading Skeleton Mode */}
-      {isLoading && briefings.length === 0 && (
-        <div className="flex flex-col gap-5">
-          {[1, 2, 3].map((skeletonId) => (
-            <div 
-              key={skeletonId}
-              className="glass-panel rounded-2xl p-5 flex flex-col gap-4 animate-pulse border-slate-900/25 bg-slate-950/10"
+    <div className="flex min-w-0 flex-col gap-7">
+      <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="editorial-card rounded-sm p-3 sm:p-4">
+          <div className="relative flex items-center gap-3">
+            <Search className="absolute left-3 h-4 w-4 text-editorial-text-subtle" />
+            <input
+              type="text"
+              value={localSearch}
+              onChange={(e) => setLocalSearch(e.target.value)}
+              placeholder="Search protocols, projects, topics, or sources"
+              className="h-12 w-full rounded-sm border border-editorial-border bg-editorial-bg pl-10 pr-4 text-base text-foreground outline-none transition-colors placeholder:text-editorial-text-subtle focus:border-editorial-accent"
+            />
+            <button
+              onClick={() => {
+                triggerHaptic('light');
+                refresh();
+              }}
+              disabled={isLoading}
+              className="flex h-12 shrink-0 items-center gap-2 rounded-sm border border-editorial-border bg-editorial-card px-3 text-sm font-bold text-editorial-text-subtle transition-colors hover:border-editorial-border-hover hover:text-foreground disabled:opacity-60"
             >
-              <div className="flex justify-between items-center w-full">
-                <div className="w-20 h-4 bg-slate-900/80 rounded" />
-                <div className="w-16 h-3 bg-slate-900/80 rounded" />
-              </div>
-              <div className="w-3/4 h-5 bg-slate-900/80 rounded" />
-              <div className="w-full h-12 bg-slate-900/80 rounded-lg" />
-            </div>
-          ))}
+              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {SEARCH_SUGGESTIONS.map((suggestion) => (
+              <button
+                key={suggestion}
+                onClick={() => setLocalSearch(suggestion)}
+                className="rounded-sm bg-editorial-muted px-2.5 py-1 text-xs font-semibold text-editorial-text-subtle hover:text-foreground"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
         </div>
-      )}
 
-      {/* 3. Database Connection Error Mode */}
+        <div className="editorial-card rounded-sm p-4">
+          <div className="flex items-center gap-2 text-sm font-extrabold">
+            <BarChart3 className="h-4 w-4 text-editorial-accent" />
+            Ecosystem Market Pulse
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+            <PulseStat label="Stories" value={briefings.length.toString()} />
+            <PulseStat label="Sources" value={countSources(briefings).toString()} />
+            <PulseStat label="Trust" value={`${averageTrust(briefings)}%`} />
+          </div>
+        </div>
+      </section>
+
+      {isLoading && briefings.length === 0 && <LoadingFrontPage />}
+
       {error && briefings.length === 0 && (
-        <div className="glass-panel rounded-2xl p-8 flex flex-col items-center justify-center gap-4 text-center border-red-500/10 bg-red-950/5">
-          <AlertCircle className="w-10 h-10 text-red-400/80 animate-pulse" />
-          <h3 className="text-xs font-bold text-slate-200 uppercase tracking-widest font-mono">Ecosystem Link Offline</h3>
-          <p className="text-[10px] text-slate-500 max-w-sm leading-relaxed font-mono">
-            Unable to synchronize with the intelligence database cluster. Verify credentials.
+        <div className="editorial-card rounded-sm p-8 text-center">
+          <AlertCircle className="mx-auto h-8 w-8 text-red-500" />
+          <h3 className="mt-3 text-lg font-extrabold text-foreground">Live briefings are unavailable</h3>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-editorial-text-subtle">
+            The publication could not reach the briefing database. Recent local coverage may still be available after refreshing.
           </p>
           <button
             onClick={() => refresh()}
-            className="px-4 py-2 bg-red-500/10 hover:bg-red-500/15 border border-red-500/20 text-red-400 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-colors cursor-pointer font-mono"
+            className="mt-4 rounded-sm border border-editorial-border px-4 py-2 text-sm font-bold hover:border-editorial-border-hover"
           >
-            Reconnect
+            Try again
           </button>
         </div>
       )}
 
-      {/* 4. Cinematic Hero Ecosystem Spotlight Widget (Default layout view) */}
       {!isLoading && !searchQuery && spotlightBriefing && (
-        <motion.div
-          onClick={() => { triggerHaptic('medium'); router.push(`/briefing/${spotlightBriefing.slug}`); }}
-          whileHover={{ y: -3 }}
-          transition={{ type: 'spring', stiffness: 200, damping: 22 }}
-          className="w-full relative rounded-2xl overflow-hidden border border-slate-900 bg-slate-950/30 cursor-pointer shadow-xl hover:shadow-2xl group transition-all duration-300 select-none"
-        >
-          {/* Large Hero Image Banner */}
-          {spotlightBriefing.image_url && !isHeroImageBroken && (
-            <div className="w-full aspect-[21/9] relative overflow-hidden border-b border-slate-950 z-0">
-              <ImageWithFallback
-                src={spotlightBriefing.image_url}
-                alt={spotlightBriefing.title}
-                className="w-full h-full object-cover group-hover:scale-101 transition-transform duration-700 opacity-80"
-                onFallbackTriggered={() => setIsHeroImageBroken(true)}
-              />
-            </div>
-          )}
-
-          {/* Spotlight Badge overlay */}
-          <div className="absolute top-4 left-6 bg-amber-500/10 border border-amber-500/25 px-2.5 py-0.5 rounded-full text-[8px] font-bold font-mono uppercase tracking-widest text-amber-400">
-            Spotlight Feature
-          </div>
-
-          {/* Card Content Overlay / Box */}
-          <div className="p-6 flex flex-col gap-4">
-            <div className="flex items-center justify-between text-[9px] font-mono tracking-wider uppercase font-semibold text-slate-550">
-              <span className="text-sky-400 font-bold">{spotlightBriefing.category}</span>
-              <span>{getCardRelativeTime(spotlightBriefing.published_at)}</span>
-            </div>
-
-            <h2 className="text-base md:text-xl font-extrabold text-slate-100 group-hover:text-sky-400 transition-colors leading-snug font-display">
-              {spotlightBriefing.title}
-            </h2>
-
-            <p className="text-slate-400 text-[11px] leading-relaxed line-clamp-2">
-              {spotlightBriefing.briefing}
-            </p>
-
-            {/* Why it matters banner */}
-            <div className="border-l border-sky-500/25 pl-4 py-0.5 mt-1.5 flex flex-col gap-0.5">
-              <span className="text-[8px] uppercase font-bold tracking-widest text-slate-550 font-mono">Why It Matters</span>
-              <p className="text-slate-300 text-[11px] font-semibold leading-relaxed">
-                {spotlightBriefing.why_it_matters}
-              </p>
-            </div>
-          </div>
-        </motion.div>
+        <FeaturedStory
+          briefing={spotlightBriefing}
+          isHeroImageBroken={isHeroImageBroken}
+          setIsHeroImageBroken={setIsHeroImageBroken}
+          onOpen={() => {
+            triggerHaptic('medium');
+            router.push(`/briefing/${spotlightBriefing.slug}`);
+          }}
+        />
       )}
 
-      {/* 5. Chronological Signal stream List */}
-      <AnimatePresence mode="popLayout">
-        {!isLoading && feedBriefings.length > 0 && (
-          <motion.div
-            variants={containerVariants}
-            initial="hidden"
-            animate="show"
-            className="flex flex-col gap-5"
-          >
-            {feedBriefings.map((briefing) => (
-              <motion.div
-                key={briefing.id}
-                variants={itemVariants}
-                layoutId={`card-container-${briefing.id}`}
-              >
-                <BriefingCard briefing={briefing} />
-              </motion.div>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {!isLoading && briefings.length > 0 && (
+        <section id="live-feed" className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_310px]">
+          <div className="flex min-w-0 flex-col gap-4">
+            <div className="flex items-end justify-between gap-4 border-b border-editorial-border pb-3">
+              <div>
+                <p className="text-xs font-extrabold uppercase text-editorial-text-subtle">Latest Developments</p>
+                <h2 className="serif-title text-3xl font-black">Live TON Feed</h2>
+              </div>
+              <p className="hidden max-w-xs text-right text-sm text-editorial-text-subtle sm:block">
+                Curated briefings ranked by source quality, recency, and ecosystem relevance.
+              </p>
+            </div>
 
-      {/* 6. Empty Results Mode */}
+            <AnimatePresence mode="popLayout">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="grid gap-4"
+              >
+                {feedBriefings.map((briefing) => (
+                  <motion.div key={briefing.id} layout>
+                    <BriefingCard briefing={briefing} />
+                  </motion.div>
+                ))}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+          <aside className="grid content-start gap-4">
+            <TopicPanel topics={topicCounts} onPick={setLocalSearch} />
+            <SourcePanel briefings={briefings} />
+          </aside>
+        </section>
+      )}
+
+      {!isLoading && !searchQuery && briefings.length > 0 && (
+        <section className="grid gap-4 border-t border-editorial-border pt-6 md:grid-cols-2">
+          {CURATED_SECTIONS.map((section) => {
+            const items = briefings.filter((briefing) => !section.category || briefing.category === section.category).slice(0, 2);
+            if (items.length === 0) return null;
+            return (
+              <div key={section.title} className="editorial-card rounded-sm p-4">
+                <div className="mb-4 flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="serif-title text-2xl font-black">{section.title}</h3>
+                    <p className="text-sm text-editorial-text-subtle">{section.note}</p>
+                  </div>
+                  <ArrowUpRight className="h-4 w-4 text-editorial-text-subtle" />
+                </div>
+                <div className="grid gap-3">
+                  {items.map((item) => (
+                    <a key={item.id} href={`/briefing/${item.slug}`} className="group border-t border-editorial-border pt-3">
+                      <p className="text-xs font-bold text-editorial-accent">{item.source_name || item.category}</p>
+                      <h4 className="serif-title mt-1 text-lg font-black leading-tight group-hover:text-editorial-accent">{item.title}</h4>
+                      <p className="mt-1 line-clamp-2 text-sm text-editorial-text-subtle">{item.why_it_matters}</p>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </section>
+      )}
+
       {!isLoading && briefings.length === 0 && !error && (
-        <div className="glass-panel rounded-2xl p-12 flex flex-col items-center justify-center gap-3 text-center border-slate-900/35 bg-slate-950/10">
-          <Layers className="w-8 h-8 text-slate-700 animate-pulse" />
-          <h3 className="text-xs font-bold text-slate-350 uppercase tracking-wider font-mono">No Signals Found</h3>
-          <p className="text-[10px] text-slate-500 max-w-xs font-mono">
-            No ecosystem signals match your current query or category tab filters.
-          </p>
+        <div className="editorial-card rounded-sm p-10 text-center">
+          <Sparkles className="mx-auto h-7 w-7 text-editorial-accent" />
+          <h3 className="mt-3 text-lg font-extrabold">No stories match this view</h3>
+          <p className="mt-2 text-sm text-editorial-text-subtle">Try a different category or search term.</p>
         </div>
       )}
     </div>
   );
 }
 
-// Utility relative date calculations
-function getCardRelativeTime(isoString: string): string {
-  try {
-    const past = new Date(isoString).getTime();
-    const now = Date.now();
-    const diffMs = now - past;
-    
-    const diffMins = Math.floor(diffMs / (60 * 1000));
-    const diffHours = Math.floor(diffMs / (60 * 60 * 1000));
-    const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+function FeaturedStory({
+  briefing,
+  isHeroImageBroken,
+  setIsHeroImageBroken,
+  onOpen,
+}: {
+  briefing: Briefing;
+  isHeroImageBroken: boolean;
+  setIsHeroImageBroken: (broken: boolean) => void;
+  onOpen: () => void;
+}) {
+  return (
+    <section onClick={onOpen} className="group cursor-pointer overflow-hidden rounded-sm border border-editorial-border bg-editorial-card">
+      <div className="grid lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
+        <div className="relative min-h-[300px] bg-editorial-muted">
+          {briefing.image_url && !isHeroImageBroken ? (
+            <ImageWithFallback
+              src={briefing.image_url}
+              alt={briefing.title}
+              className="h-full min-h-[300px] w-full object-cover transition-transform duration-700 group-hover:scale-[1.02]"
+              onFallbackTriggered={() => setIsHeroImageBroken(true)}
+            />
+          ) : (
+            <div className="tone-grid flex h-full min-h-[300px] items-end p-6">
+              <span className="serif-title text-8xl font-black text-editorial-accent">TON</span>
+            </div>
+          )}
+          <div className="absolute left-4 top-4 rounded-sm bg-editorial-accent px-3 py-1.5 text-xs font-extrabold text-white dark:text-[#101722]">
+            Featured Story
+          </div>
+        </div>
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays === 1) return 'Yesterday';
-    return `${diffDays} days ago`;
-  } catch {
-    return 'Recently';
-  }
+        <div className="flex flex-col gap-5 p-5 md:p-7">
+          <div className="flex flex-wrap items-center gap-3 text-sm font-semibold text-editorial-text-subtle">
+            <span className="text-editorial-accent">{briefing.category}</span>
+            <span>{briefing.source_name || 'Verified source'}</span>
+            <span>{getRelativeTime(briefing.published_at)}</span>
+            <span className="flex items-center gap-1"><Clock className="h-4 w-4" /> {getReadingTime(briefing)} min read</span>
+          </div>
+
+          <h1 className="serif-title text-4xl font-black leading-none text-foreground group-hover:text-editorial-accent md:text-5xl">
+            {briefing.title}
+          </h1>
+
+          <p className="text-base leading-relaxed text-editorial-text-subtle">{briefing.briefing}</p>
+
+          <div className="border-l-4 border-editorial-accent pl-4">
+            <p className="text-xs font-extrabold uppercase text-editorial-text-subtle">Why it matters</p>
+            <p className="mt-1 text-lg font-bold leading-snug text-foreground">{briefing.why_it_matters}</p>
+          </div>
+
+          <div className="mt-auto grid gap-3 border-t border-editorial-border pt-4 text-sm text-editorial-text-subtle sm:grid-cols-2">
+            <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-editorial-accent" /> Source quality {briefing.source_quality_score}%</div>
+            <div className="flex flex-wrap gap-2">
+              {briefing.tags.slice(0, 3).map((tag) => (
+                <span key={tag} className="rounded-sm bg-editorial-muted px-2 py-1 text-xs font-semibold">{tag}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PulseStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-sm bg-editorial-muted px-2 py-3">
+      <div className="text-lg font-black text-foreground">{value}</div>
+      <div className="text-[11px] font-bold text-editorial-text-subtle">{label}</div>
+    </div>
+  );
+}
+
+function TopicPanel({ topics, onPick }: { topics: [string, number][]; onPick: (topic: string) => void }) {
+  const visibleTopics = topics.length ? topics : SEARCH_SUGGESTIONS.map((topic) => [topic, 1] as [string, number]);
+  return (
+    <div className="editorial-card rounded-sm p-4">
+      <h3 className="text-xs font-extrabold uppercase text-editorial-text-subtle">Trending Topics</h3>
+      <div className="mt-3 grid gap-2">
+        {visibleTopics.map(([topic, count]) => (
+          <button
+            key={topic}
+            onClick={() => onPick(topic)}
+            className="flex items-center justify-between rounded-sm border border-editorial-border px-3 py-2 text-left text-sm font-semibold hover:border-editorial-border-hover"
+          >
+            <span>{topic}</span>
+            <span className="text-xs text-editorial-text-subtle">{count}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SourcePanel({ briefings }: { briefings: Briefing[] }) {
+  const sources = Array.from(new Set(briefings.map((b) => b.source_name).filter(Boolean))).slice(0, 6);
+  return (
+    <div className="editorial-card rounded-sm p-4">
+      <h3 className="text-xs font-extrabold uppercase text-editorial-text-subtle">Source Watch</h3>
+      <div className="mt-3 grid gap-2">
+        {sources.length ? sources.map((source) => (
+          <div key={source} className="flex items-center justify-between border-b border-editorial-border py-2 text-sm">
+            <span className="font-semibold">{source}</span>
+            <span className="text-xs text-editorial-text-subtle">active</span>
+          </div>
+        )) : <p className="text-sm text-editorial-text-subtle">Sources will appear as stories load.</p>}
+      </div>
+    </div>
+  );
+}
+
+function LoadingFrontPage() {
+  return (
+    <div className="grid gap-4">
+      {[1, 2, 3].map((item) => (
+        <div key={item} className="editorial-card grid animate-pulse gap-4 rounded-sm p-4 sm:grid-cols-[190px_1fr]">
+          <div className="aspect-[4/3] rounded-sm bg-editorial-muted" />
+          <div className="grid content-start gap-3">
+            <div className="h-3 w-32 rounded-sm bg-editorial-muted" />
+            <div className="h-7 w-4/5 rounded-sm bg-editorial-muted" />
+            <div className="h-16 rounded-sm bg-editorial-muted" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function countSources(briefings: Briefing[]): number {
+  return new Set(briefings.map((briefing) => briefing.source_name || briefing.source_url || briefing.category)).size;
+}
+
+function averageTrust(briefings: Briefing[]): number {
+  if (!briefings.length) return 0;
+  const total = briefings.reduce((sum, briefing) => sum + (briefing.confidence_score || 0), 0);
+  return Math.round(total / briefings.length);
 }

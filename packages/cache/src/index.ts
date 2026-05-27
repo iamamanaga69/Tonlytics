@@ -64,8 +64,13 @@ export async function deleteCacheItem(key: string): Promise<void> {
  */
 export async function deleteCachePattern(pattern: string): Promise<void> {
   const client = getRedisClient();
-  const keys = await client.keys(pattern);
-  if (keys.length > 0) {
-    await client.del(...keys);
-  }
+
+  let cursor = '0';
+  do {
+    const [nextCursor, keys] = await client.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+    cursor = nextCursor;
+    if (keys.length > 0) {
+      await client.del(...keys);
+    }
+  } while (cursor !== '0');
 }

@@ -26,41 +26,69 @@ export function cosineSimilarity(vecA: number[], vecB: number[]): number {
  * Preparation skeleton for OpenAI text-embedding-3-small or Gemini text-embedding-004.
  */
 export async function generateTextEmbedding(text: string): Promise<number[]> {
-  const apiKey = process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    // Return mock 1536-dimensional vector for offline local testing
-    // Proactively seeded with deterministic float sequences depending on text length
-    const mockVector = new Array(1536).fill(0).map((_, i) => {
-      const freq = (text.length + i) % 100;
-      return Math.sin(freq) / 10;
-    });
-    return mockVector;
-  }
+  const openaiApiKey = process.env.OPENAI_API_KEY;
+  const geminiApiKey = process.env.GEMINI_API_KEY;
 
-  // Implementation when API is active
-  try {
-    const response = await fetch('https://api.openai.com/v1/embeddings', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        input: text.replace(/\n/g, ' '),
-        model: 'text-embedding-3-small'
-      })
-    });
+  if (openaiApiKey) {
+    try {
+      const response = await fetch('https://api.openai.com/v1/embeddings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${openaiApiKey}`
+        },
+        body: JSON.stringify({
+          input: text.replace(/\n/g, ' '),
+          model: 'text-embedding-3-small'
+        })
+      });
 
-    if (!response.ok) {
-      throw new Error(`Embedding API returned: ${response.statusText}`);
+      if (!response.ok) {
+        throw new Error(`OpenAI Embedding API returned: ${response.statusText}`);
+      }
+
+      const json = await response.json();
+      return json.data[0].embedding;
+    } catch (error) {
+      console.error('[EMBEDDINGS] OpenAI API call failed:', error);
+      throw error;
     }
-
-    const json = await response.json();
-    return json.data[0].embedding;
-  } catch (error) {
-    console.error('[EMBEDDINGS] API call failed, falling back to mock:', error);
-    return new Array(1536).fill(0).map(() => Math.random() - 0.5);
   }
+
+  if (geminiApiKey) {
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${geminiApiKey}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: 'models/text-embedding-004',
+            content: { parts: [{ text: text.replace(/\n/g, ' ') }] }
+          })
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Gemini Embedding API returned: ${response.statusText}`);
+      }
+
+      const json = await response.json();
+      return json.embedding.values;
+    } catch (error) {
+      console.error('[EMBEDDINGS] Gemini API call failed:', error);
+      throw error;
+    }
+  }
+
+  // No API key present — return mock 1536-dimensional vector for offline local testing
+  const mockVector = new Array(1536).fill(0).map((_, i) => {
+    const freq = (text.length + i) % 100;
+    return Math.sin(freq) / 10;
+  });
+  return mockVector;
 }
 
 /**

@@ -3,38 +3,32 @@
 import { useTerminalStore } from '@/store/terminalStore';
 import { useTelegram } from '@/hooks/useTelegram';
 import type { BriefingCategory } from '@/types';
-import { 
-  Layers, 
-  Smartphone, 
-  Coins, 
-  Shuffle, 
-  Globe, 
-  Grid,
-  TrendingUp
-} from 'lucide-react';
+import { Blocks, Coins, Gem, Globe2, Landmark, Layers, Smartphone, TrendingUp } from 'lucide-react';
 import { clsx } from 'clsx';
 
 interface CategoryItem {
   id: BriefingCategory | 'All';
   label: string;
+  description: string;
   icon: React.ComponentType<{ className?: string }>;
 }
 
 const CATEGORIES: CategoryItem[] = [
-  { id: 'All', label: 'All intelligence', icon: Grid },
-  { id: 'Infrastructure', label: 'Infrastructure', icon: Layers },
-  { id: 'Mini Apps', label: 'Mini Apps', icon: Smartphone },
-  { id: 'DeFi', label: 'DeFi & Stablecoins', icon: Coins },
-  { id: 'Integration', label: 'Integrations', icon: Shuffle },
-  { id: 'Ecosystem', label: 'Ecosystem News', icon: Globe },
+  { id: 'All', label: 'Top Stories', description: 'Everything important across TON', icon: Landmark },
+  { id: 'Infrastructure', label: 'TON Infrastructure', description: 'Core releases, wallets, tooling', icon: Layers },
+  { id: 'Mini Apps', label: 'Mini Apps', description: 'Telegram-native product coverage', icon: Smartphone },
+  { id: 'DeFi', label: 'DeFi & Stablecoins', description: 'Liquidity, payments, exchanges', icon: Coins },
+  { id: 'Integration', label: 'Telegram Integrations', description: 'Distribution and partner moves', icon: Blocks },
+  { id: 'Ecosystem', label: 'Ecosystem Funding', description: 'Projects, grants, community', icon: Globe2 },
 ];
 
 const TRENDING_TOPICS = [
-  '#wallet-v5',
-  '#tma-sdk',
-  '#usdt-velocity',
-  '#dao-grants',
-  '#stablecoins',
+  'Wallet v5',
+  'USDT on TON',
+  'Telegram Mini Apps',
+  'TON Connect',
+  'Tact tooling',
+  'STON.fi liquidity',
 ];
 
 export default function CategorySidebar() {
@@ -43,95 +37,85 @@ export default function CategorySidebar() {
 
   const handleCategorySelect = (categoryId: BriefingCategory | 'All') => {
     setSelectedCategory(categoryId);
-    triggerHaptic('light'); // tactile feedback on button tap
+    triggerHaptic('light');
   };
 
   return (
     <>
-      {/* -------------------------------------------
-         DESKTOP SIDEBAR VIEW (Visible on lg md screens)
-         ------------------------------------------- */}
-      <aside className="hidden md:flex flex-col gap-6 w-64 shrink-0">
-        {/* Minimal Stream Indicator Line */}
-        <div className="flex items-center gap-2 px-3 pt-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 terminal-status-glow" />
-          <span className="text-[10px] tracking-widest uppercase font-bold text-slate-500 font-mono">
-            Intelligence Stream Online
-          </span>
-        </div>
-
-        {/* Categories Navigation */}
-        <div className="flex flex-col gap-1">
-          <h3 className="text-[10px] uppercase tracking-widest font-bold text-slate-500 px-3 mb-2 font-mono">
-            Segments
-          </h3>
-          
-          {CATEGORIES.map((cat) => {
-            const Icon = cat.icon;
-            const isActive = selectedCategory === cat.id;
-            
-            return (
-              <button
-                key={cat.id}
-                onClick={() => handleCategorySelect(cat.id)}
-                className={clsx(
-                  "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 text-left border border-transparent",
-                  isActive 
-                    ? "bg-slate-900/60 text-slate-100" 
-                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/10"
-                )}
-              >
-                <Icon className={clsx("w-3.5 h-3.5", isActive ? "text-slate-200" : "text-slate-500")} />
-                <span>{cat.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Trending Tags Section */}
-        <div className="flex flex-col gap-2.5 border-t border-slate-900/40 pt-5">
-          <div className="flex items-center gap-1.5 px-3 mb-1 text-slate-500 font-mono text-[10px]">
-            <TrendingUp className="w-3.5 h-3.5" />
-            <h3 className="uppercase tracking-widest font-bold">
-              Ecosystem Signals
-            </h3>
+      <aside id="coverage" className="hidden lg:flex flex-col gap-5">
+        <section className="editorial-card rounded-sm p-4">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xs font-extrabold uppercase text-editorial-text-subtle">Coverage</h2>
+            <Gem className="h-4 w-4 text-editorial-accent" />
           </div>
-          
-          <div className="flex flex-wrap gap-2 px-3">
+
+          <div className="grid gap-1">
+            {CATEGORIES.map((cat) => {
+              const isActive = selectedCategory === cat.id;
+              const Icon = cat.icon;
+
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => handleCategorySelect(cat.id)}
+                  className={clsx(
+                    'group grid grid-cols-[28px_1fr] gap-3 rounded-sm border px-3 py-3 text-left transition-colors',
+                    isActive
+                      ? 'border-editorial-accent bg-editorial-accent-bg text-foreground'
+                      : 'border-transparent text-editorial-text-subtle hover:border-editorial-border hover:text-foreground'
+                  )}
+                >
+                  <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-sm bg-editorial-muted">
+                    <Icon className="h-4 w-4 text-editorial-accent" />
+                  </span>
+                  <span>
+                    <span className="block text-sm font-extrabold">{cat.label}</span>
+                    <span className="mt-0.5 block text-xs leading-snug text-editorial-text-subtle">{cat.description}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <section id="trending" className="editorial-card rounded-sm p-4">
+          <div className="mb-4 flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-editorial-accent" />
+            <h2 className="text-xs font-extrabold uppercase text-editorial-text-subtle">Trending in TON</h2>
+          </div>
+          <div className="flex flex-wrap gap-2">
             {TRENDING_TOPICS.map((topic) => (
-              <span
+              <button
                 key={topic}
-                className="text-[10px] text-slate-400 font-mono font-medium hover:text-sky-400 cursor-pointer transition-colors"
+                onClick={() => {
+                  setSelectedCategory('All');
+                  triggerHaptic('light');
+                }}
+                className="rounded-sm border border-editorial-border bg-editorial-card px-2.5 py-1.5 text-xs font-semibold text-editorial-text-subtle hover:border-editorial-border-hover hover:text-foreground"
               >
                 {topic}
-              </span>
+              </button>
             ))}
           </div>
-        </div>
+        </section>
       </aside>
 
-      {/* -------------------------------------------
-         MOBILE SWIPEABLE HEADER VIEW (Visible on sm screens)
-         ------------------------------------------- */}
-      <div className="md:hidden w-full flex flex-col gap-3 shrink-0 scrollbar-none py-1 border-b border-slate-900/30 mb-2">
-        <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-none px-4 -mx-4 mask-gradient-right">
+      <div className="lg:hidden -mx-4 mb-1 border-b border-editorial-border px-4 pb-3">
+        <div className="mask-gradient-right flex gap-3 overflow-x-auto">
           {CATEGORIES.map((cat) => {
-            const Icon = cat.icon;
             const isActive = selectedCategory === cat.id;
-            
             return (
               <button
                 key={cat.id}
                 onClick={() => handleCategorySelect(cat.id)}
                 className={clsx(
-                  "flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-150 border shrink-0",
-                  isActive 
-                    ? "bg-sky-500/10 border-sky-500/40 text-sky-400" 
-                    : "bg-slate-950/40 border-slate-800/40 text-slate-400 hover:bg-slate-900/30"
+                  'shrink-0 border-b-2 px-1 pb-2 text-sm font-extrabold transition-colors',
+                  isActive
+                    ? 'border-editorial-accent text-foreground'
+                    : 'border-transparent text-editorial-text-subtle'
                 )}
               >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{cat.id === 'All' ? 'All' : cat.id}</span>
+                {cat.label}
               </button>
             );
           })}

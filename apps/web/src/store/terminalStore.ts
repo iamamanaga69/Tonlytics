@@ -24,7 +24,7 @@ export const useTerminalStore = create<TerminalState>((set) => ({
   searchQuery: '',
   activeBriefing: null,
   isDetailOpen: false,
-  breakingNews: 'TON Core Deploys Wallet v5 Integration Across Ecosystem Mainnet.',
+  breakingNews: 'TON Core deploys Wallet v5 coverage across the ecosystem.',
   isTelegramContext: false,
 
   setSelectedCategory: (category) => set({ selectedCategory: category }),

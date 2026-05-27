@@ -1,31 +1,63 @@
 'use client';
 
-import { useTerminalStore } from '@/store/terminalStore';
-import { AlertCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { supabase, isSupabaseReady } from '@/lib/supabase-client';
 
 export default function BreakingBanner() {
-  const { breakingNews } = useTerminalStore();
+  const [headlines, setHeadlines] = useState<string[]>([]);
 
-  if (!breakingNews) return null;
+  useEffect(() => {
+    async function fetchHeadlines() {
+      if (!isSupabaseReady) {
+        setHeadlines([
+          'Latest TON updates will appear here when Supabase is connected.',
+          'Editorial coverage includes infrastructure, Mini Apps, DeFi, funding, and Telegram integrations.',
+        ]);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('briefings')
+          .select('title')
+          .eq('is_published', true)
+          .order('published_at', { ascending: false })
+          .limit(8);
+
+        if (!error && data && data.length > 0) {
+          setHeadlines(data.map((b: { title: string }) => b.title));
+        } else {
+          setHeadlines(['Following verified TON ecosystem sources for new developments.']);
+        }
+      } catch {
+        setHeadlines(['Live TON feed is temporarily unavailable. Recent briefings remain readable.']);
+      }
+    }
+
+    fetchHeadlines();
+    const interval = setInterval(fetchHeadlines, 120 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (headlines.length === 0) return null;
+
+  const items = [...headlines, ...headlines];
 
   return (
-    <div className="w-full bg-[#0a0d14]/40 border-b border-slate-900/40 text-slate-400 py-2 px-4 overflow-hidden relative flex items-center gap-3">
-      {/* Muted Indicating Tag */}
-      <div className="flex items-center gap-1.5 bg-slate-950/50 border border-slate-900 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest text-slate-400 shrink-0 z-10 font-mono">
-        <AlertCircle className="w-3 h-3 text-slate-500" />
-        <span>Signal</span>
-      </div>
-      
-      {/* Continuous Marquee Ticker */}
-      <div className="w-full overflow-hidden relative flex items-center">
-        <div className="whitespace-nowrap animate-marquee inline-block font-semibold text-xs tracking-wider text-slate-400 font-mono uppercase">
-          <span className="mx-8">{breakingNews}</span>
-          <span className="mx-8">•</span>
-          <span className="mx-8">Tether Native USDt launches directly inside Telegram interface.</span>
-          <span className="mx-8">•</span>
-          <span className="mx-8">STON.fi decentralized liquidity pools cross $100M TVL threshold.</span>
-          <span className="mx-8">•</span>
-          <span className="mx-8">{breakingNews}</span>
+    <div className="w-full overflow-hidden border-b border-editorial-border bg-editorial-muted/55">
+      <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-2.5 md:px-6 lg:px-8">
+        <div className="shrink-0 rounded-sm bg-editorial-accent px-2.5 py-1 text-[11px] font-extrabold text-white dark:text-[#101722]">
+          Live TON Feed
+        </div>
+        <div className="mask-gradient-right relative flex min-w-0 flex-1 overflow-hidden">
+          <div className="flex min-w-max animate-marquee items-center text-sm font-semibold text-editorial-text-subtle">
+            {items.map((headline, index) => (
+              <span key={`${headline}-${index}`} className="flex items-center">
+                <span className="mx-6">{headline}</span>
+                <span className="h-1 w-1 rounded-full bg-editorial-border-hover" />
+              </span>
+            ))}
+          </div>
         </div>
       </div>
     </div>

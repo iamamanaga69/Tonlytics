@@ -4,175 +4,136 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { useTelegram } from '@/hooks/useTelegram';
 import type { Briefing } from '@/types';
-import { Clock, Send, Layers, Smartphone, Coins, Shuffle, Globe } from 'lucide-react';
-import { clsx } from 'clsx';
-import { motion } from 'framer-motion';
+import { Bookmark, Clock, Eye, ShieldCheck } from 'lucide-react';
 import ImageWithFallback from './ImageWithFallback';
 
 interface BriefingCardProps {
   briefing: Briefing;
+  compact?: boolean;
 }
 
-export default function BriefingCard({ briefing }: BriefingCardProps) {
+export default function BriefingCard({ briefing, compact = false }: BriefingCardProps) {
   const router = useRouter();
   const { triggerHaptic } = useTelegram();
   const [isImageBroken, setIsImageBroken] = React.useState(false);
 
+  const href = `/briefing/${briefing.slug}`;
+  const trustLabel = getTrustLabel(briefing);
+  const sourceHost = getHost(briefing.source_url);
+
   const handleCardClick = () => {
-    triggerHaptic('light'); // tactile feedback for Telegram users
-    router.push(`/briefing/${briefing.slug}`);
+    triggerHaptic('light');
+    router.push(href);
   };
-
-  const getCategoryTheme = (category: Briefing['category']) => {
-    switch (category) {
-      case 'Infrastructure':
-        return {
-          badge: 'text-indigo-400 border-indigo-900/35 bg-indigo-950/20',
-          glow: 'group-hover:border-indigo-500/30',
-          icon: Layers
-        };
-      case 'Mini Apps':
-        return {
-          badge: 'text-emerald-400 border-emerald-900/35 bg-emerald-950/20',
-          glow: 'group-hover:border-emerald-500/30',
-          icon: Smartphone
-        };
-      case 'DeFi':
-        return {
-          badge: 'text-amber-400 border-amber-900/35 bg-amber-950/20',
-          glow: 'group-hover:border-amber-500/30',
-          icon: Coins
-        };
-      case 'Integration':
-        return {
-          badge: 'text-purple-400 border-purple-900/35 bg-purple-950/20',
-          glow: 'group-hover:border-purple-500/30',
-          icon: Shuffle
-        };
-      default: // Ecosystem
-        return {
-          badge: 'text-sky-400 border-sky-900/35 bg-sky-950/20',
-          glow: 'group-hover:border-sky-500/30',
-          icon: Globe
-        };
-    }
-  };
-
-  const theme = getCategoryTheme(briefing.category);
-  const Icon = theme.icon;
 
   return (
-    <motion.article 
+    <article
       onClick={handleCardClick}
-      whileHover={{ y: -3, scale: 1.006 }}
-      transition={{ type: 'spring', stiffness: 200, damping: 22 }}
-      className={clsx(
-        "glass-panel rounded-2xl overflow-hidden flex flex-col cursor-pointer relative border border-slate-900/65 bg-slate-950/30 shadow-lg hover:shadow-2xl transition-all duration-350 select-none group",
-        theme.glow
-      )}
+      className="group grid cursor-pointer gap-4 rounded-sm border border-editorial-border bg-editorial-card p-3 transition-colors hover:border-editorial-border-hover sm:grid-cols-[190px_minmax(0,1fr)] sm:p-4"
     >
-      
-      {/* 1. Card Media Thumbnail */}
-      {briefing.image_url && !isImageBroken && (
-        <div className="w-full aspect-[21/9] sm:aspect-[16/7] relative overflow-hidden border-b border-slate-950 z-0">
+      {briefing.image_url && !isImageBroken ? (
+        <div className="relative aspect-[16/10] overflow-hidden rounded-sm bg-editorial-muted sm:aspect-[4/3]">
           <ImageWithFallback
             src={briefing.image_url}
             alt={briefing.title}
-            className="w-full h-full object-cover object-center opacity-75 group-hover:scale-102 transition-transform duration-700"
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
             onFallbackTriggered={() => setIsImageBroken(true)}
           />
         </div>
+      ) : (
+        <div className="tone-grid flex aspect-[16/10] items-end rounded-sm border border-editorial-border bg-editorial-muted p-3 sm:aspect-[4/3]">
+          <span className="serif-title text-4xl font-black text-editorial-accent">{briefing.category.slice(0, 1)}</span>
+        </div>
       )}
 
-      {/* Card Content Shell */}
-      <div className="p-5 flex flex-col gap-4.5">
-        
-        {/* 2. Header Metadata Row */}
-        <div className="flex items-center justify-between w-full text-[9px] tracking-wider uppercase font-semibold font-mono">
-          <div className="flex items-center gap-2">
-            <span className={clsx(
-              "px-2 py-0.5 rounded-full border font-bold text-[8px]",
-              theme.badge
-            )}>
-              {briefing.category}
-            </span>
-            
-            <span className="text-slate-500 font-bold text-[8px]">
-              via {briefing.source_name || 'Ecosystem Aggregator'}
-            </span>
-            
-            {briefing.telegram_posted && (
-              <span className="flex items-center gap-0.5 text-slate-550 font-bold text-[8px] hidden sm:inline-flex">
-                <Send className="w-2.5 h-2.5" />
-                <span>Broadcasted</span>
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-1 text-slate-500 font-semibold">
-            <Clock className="w-3.5 h-3.5 text-slate-650" />
-            <span>{getCardRelativeTime(briefing.published_at)}</span>
-          </div>
+      <div className="flex min-w-0 flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-editorial-text-subtle">
+          <span className="font-extrabold text-editorial-accent">{briefing.category}</span>
+          <span>{briefing.source_name || sourceHost || 'Verified source'}</span>
+          <span>{getRelativeTime(briefing.published_at)}</span>
+          <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {getReadingTime(briefing)} min read</span>
         </div>
 
-        {/* 3. Article Title */}
-        <h2 className="text-sm md:text-base font-bold text-slate-200 group-hover:text-sky-400 transition-colors duration-250 leading-snug font-display">
+        <h2 className={compact ? 'serif-title text-lg font-black leading-tight text-foreground group-hover:text-editorial-accent' : 'serif-title text-xl font-black leading-tight text-foreground group-hover:text-editorial-accent md:text-2xl'}>
           {briefing.title}
         </h2>
 
-        {/* 4. Concise Summary Block */}
-        <p className="text-slate-400 text-[11px] md:text-xs leading-relaxed font-normal line-clamp-3">
+        <p className="line-clamp-2 text-sm leading-relaxed text-editorial-text-subtle md:text-[15px]">
           {briefing.briefing}
         </p>
 
-        {/* 5. "Why It Matters" Callout Block */}
-        <div className="border-l border-sky-500/25 pl-3 py-0.5 flex flex-col gap-0.5 transition-colors group-hover:border-sky-400/40">
-          <span className="text-[8px] uppercase font-bold tracking-widest text-slate-550 font-mono">
-            Why It Matters
-          </span>
-          <p className="text-slate-300 text-[11px] leading-relaxed font-medium">
+        <div className="border-l-2 border-editorial-border pl-3">
+          <p className="text-xs font-extrabold text-editorial-text-subtle">Why it matters</p>
+          <p className="line-clamp-2 text-sm font-semibold leading-relaxed text-foreground">
             {briefing.why_it_matters}
           </p>
         </div>
 
-        {/* 6. Tags & Curate Indicator Footer */}
-        <div className="flex items-center justify-between w-full border-t border-slate-900/50 pt-3.5 mt-0.5 text-[9px] font-mono text-slate-550">
-          <div className="flex flex-wrap gap-2 max-w-[70%]">
-            {briefing.tags.slice(0, 3).map((tag) => (
-              <span key={tag} className="hover:text-slate-450 transition-colors">
-                #{tag}
+        <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-editorial-border pt-3 text-xs text-editorial-text-subtle">
+          <div className="flex flex-wrap gap-2">
+            {briefing.tags.slice(0, 4).map((tag) => (
+              <span key={tag} className="rounded-sm bg-editorial-muted px-2 py-1 font-semibold">
+                {tag}
               </span>
             ))}
           </div>
 
-          <span className="text-[8px] font-bold uppercase tracking-wider text-sky-400/80 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transform -translate-x-1.5 transition-all duration-300 font-sans flex items-center gap-0.5">
-            <span>Read Report</span>
-            <span>&rarr;</span>
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1" title={trustLabel}>
+              <ShieldCheck className="h-3.5 w-3.5 text-editorial-accent" />
+              {trustLabel}
+            </span>
+            <span className="flex items-center gap-1"><Eye className="h-3.5 w-3.5" /> {briefing.views_count}</span>
+            <button
+              type="button"
+              onClick={(event) => event.stopPropagation()}
+              className="rounded-sm border border-editorial-border p-1.5 hover:border-editorial-border-hover hover:text-foreground"
+              aria-label="Save story"
+            >
+              <Bookmark className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
-
       </div>
-    </motion.article>
+    </article>
   );
 }
 
-// Utility relative date calculations
-function getCardRelativeTime(isoString: string): string {
+export function getRelativeTime(isoString: string): string {
   try {
     const past = new Date(isoString).getTime();
-    const now = Date.now();
-    const diffMs = now - past;
-    
-    const diffMins = Math.floor(diffMs / (60 * 1000));
-    const diffHours = Math.floor(diffMs / (60 * 60 * 1000));
-    const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+    const diffMs = Date.now() - past;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
 
     if (diffMins < 1) return 'Just now';
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays === 1) return 'Yesterday';
-    return `${diffDays} days ago`;
+    return `${diffDays}d ago`;
   } catch {
-    return 'Recently';
+    return 'Recent';
+  }
+}
+
+export function getReadingTime(briefing: Briefing): number {
+  const words = `${briefing.title} ${briefing.briefing} ${briefing.why_it_matters} ${(briefing.key_takeaways || []).join(' ')}`.split(/\s+/).length;
+  return Math.max(1, Math.ceil(words / 220));
+}
+
+function getTrustLabel(briefing: Briefing): string {
+  const score = Math.round((briefing.confidence_score + briefing.source_quality_score) / 2);
+  if (score >= 95) return 'High trust';
+  if (score >= 85) return 'Verified';
+  return 'Review noted';
+}
+
+function getHost(url?: string): string {
+  if (!url) return '';
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
   }
 }

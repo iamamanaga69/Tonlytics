@@ -78,11 +78,11 @@ export interface ModerationLog {
 
 export interface AutomationLog {
   id: string;
-  job_name: 'ingestion' | 'processing' | 'telegram_post';
-  status: 'success' | 'failure';
+  job_name: string;
+  status: string;
   records_processed: number;
   duration_ms: number;
-  error_message?: string;
+  error_message?: string | null;
   created_at: string;
 }
 

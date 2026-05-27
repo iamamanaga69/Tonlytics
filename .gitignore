@@ -4,6 +4,16 @@
 node_modules/
 jspm_packages/
 web_modules/
+venv/
+__pycache__/
+*.pyc
+
+# ==========================================
+# TELEGRAM MONITOR DATA & SESSIONS
+# ==========================================
+*.session
+apps/telegram-monitor/data/
+
 
 # ==========================================
 # BUILD AND TRANSPILE TARGETS

@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
-import { ImageOff } from 'lucide-react';
 
 interface ImageWithFallbackProps {
   src: string;
@@ -39,18 +38,18 @@ export default function ImageWithFallback({
   }
 
   return (
-    <div className="relative w-full h-full overflow-hidden bg-slate-950/40 select-none">
+    <div className="relative w-full h-full overflow-hidden bg-editorial-muted select-none">
       
       {/* 1. Sleek Skeleton Loading state */}
       {isLoading && (
         <motion.div 
           animate={{ opacity: [0.35, 0.75, 0.35] }}
           transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute inset-0 bg-slate-900 flex items-center justify-center z-10"
+          className="absolute inset-0 bg-editorial-muted flex items-center justify-center z-10"
         >
-          <div className="flex flex-col items-center gap-1.5 font-mono text-[8px] uppercase tracking-wider text-slate-650 font-bold">
-            <div className="w-6 h-6 rounded-lg border border-slate-800/40 border-t-sky-500/50 animate-spin" />
-            <span>Loading Visual...</span>
+          <div className="flex flex-col items-center gap-2 text-xs text-editorial-text-subtle font-bold">
+            <div className="w-6 h-6 rounded-full border border-editorial-border border-t-editorial-accent animate-spin" />
+            <span>Loading image</span>
           </div>
         </motion.div>
       )}
@@ -68,8 +67,7 @@ export default function ImageWithFallback({
         )}
       />
       
-      {/* Soft gradient shadow anchor */}
-      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/10 to-transparent pointer-events-none" />
+      <div className="absolute inset-0 pointer-events-none ring-1 ring-inset ring-black/5 dark:ring-white/5" />
     </div>
   );
 }

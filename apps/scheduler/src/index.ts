@@ -19,8 +19,10 @@ async function seedVerifiedSources(): Promise<void> {
 
     if (sourcesToInsert.length > 0) {
       logInfo(`[SCHEDULER] Seeding ${sourcesToInsert.length} verified ecosystem sources...`);
-      // Simulating database seeding.
-      // In a production Supabase setup, we execute insert statements.
+      const inserted = await dbService.insertSources(sourcesToInsert);
+      logInfo(`[SCHEDULER] Successfully seeded ${inserted} new sources into database.`);
+    } else {
+      logInfo('[SCHEDULER] All verified sources already exist in database. No seeding required.');
     }
   } catch (error) {
     logError('[SCHEDULER] Failed to seed verified sources:', error);
@@ -47,7 +49,7 @@ async function scheduleEcosystemCrawlers(): Promise<void> {
         ? '*/15 * * * *' // Every 15 minutes
         : '0 * * * *';   // Every hour
 
-      logInfo(`[SCHEDULER] Registering crawler cron for "${source.name}" | Cron: ${cronPattern}`);
+      logInfo(`[SCHEDULER] Registering crawler cron for "${source.name}" | Type: ${source.source_type} | Cron: ${cronPattern}`);
 
       await ingestionQueue.add(
         'crawl-source',

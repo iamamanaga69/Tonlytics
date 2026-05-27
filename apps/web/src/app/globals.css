@@ -1,65 +1,101 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..900;1,9..144,400..800&family=Inter:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
-/* -------------------------------------------
-   Quiet Luxury Editorial Design Tokens
-   ------------------------------------------- */
 @theme {
-  --color-terminal-bg: #07090e;
-  --color-terminal-card: rgba(18, 22, 32, 0.4);
-  --color-terminal-border: rgba(248, 250, 252, 0.05);
-  --color-terminal-border-active: rgba(248, 250, 252, 0.12);
-  --color-accent-sky: #38bdf8;
-  --color-accent-indigo: #6366f1;
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-display: 'Outfit', system-ui, -apple-system, sans-serif;
-  
-  --animate-marquee: marquee 35s linear infinite;
-  --animate-pulse-subtle: pulse-subtle 4s ease-in-out infinite;
+  --color-editorial-bg: var(--background);
+  --color-editorial-card: var(--surface);
+  --color-editorial-muted: var(--surface-muted);
+  --color-editorial-border: var(--border);
+  --color-editorial-border-hover: var(--border-strong);
+  --color-editorial-accent: var(--accent);
+  --color-editorial-accent-bg: var(--accent-soft);
+  --color-editorial-text-subtle: var(--text-muted);
+  --color-foreground: var(--foreground);
+
+  --font-serif: 'Fraunces', Georgia, serif;
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  --animate-marquee: marquee 54s linear infinite;
 
   @keyframes marquee {
-    0% { transform: translateX(100%); }
-    100% { transform: translateX(-100%); }
-  }
-  @keyframes pulse-subtle {
-    0%, 100% { opacity: 0.9; }
-    50% { opacity: 0.5; }
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
   }
 }
 
-/* -------------------------------------------
-   Typography & Layout Rhythm
-   ------------------------------------------- */
 :root {
-  --background: #07090e;
-  --foreground: #f1f5f9;
-  
-  /* Safe, muted fallback variables */
-  --color-hint: #64748b;
-  --color-link: #38bdf8;
-  --color-button: #1e293b;
-  --color-button-text: #f1f5f9;
+  color-scheme: light;
+  --background: #f7f4ee;
+  --foreground: #181714;
+  --surface: #fffdf8;
+  --surface-muted: #eee8dd;
+  --border: #ded6c8;
+  --border-strong: #a99b89;
+  --accent: #0b74c8;
+  --accent-soft: #e6f3fb;
+  --text-muted: #655e53;
+  --ton-blue: #0098ea;
+  --ink-soft: rgba(24, 23, 20, 0.07);
+  --editorial-shadow: 0 14px 38px rgba(56, 47, 35, 0.08);
+}
+
+html.dark {
+  color-scheme: dark;
+  --background: #101722;
+  --foreground: #f5f1e8;
+  --surface: #172131;
+  --surface-muted: #202b3b;
+  --border: #2f3b4b;
+  --border-strong: #586779;
+  --accent: #55bdf2;
+  --accent-soft: #102b3d;
+  --text-muted: #aeb8c4;
+  --ton-blue: #50bdf4;
+  --ink-soft: rgba(245, 241, 232, 0.08);
+  --editorial-shadow: 0 18px 46px rgba(0, 0, 0, 0.28);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--background);
 }
 
 body {
-  background-color: var(--background);
+  margin: 0;
+  background:
+    radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 28rem),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 36%, transparent), transparent 18rem),
+    var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  line-height: 1.55;
   overflow-x: hidden;
-  letter-spacing: -0.015em;
-  line-height: 1.6;
+  letter-spacing: 0;
+  transition: background-color 0.24s ease, color 0.24s ease;
 }
 
-h1, h2, h3, h4, .font-display {
-  font-family: var(--font-display);
-  letter-spacing: -0.025em;
-  font-weight: 700;
+a {
+  color: inherit;
+  text-decoration: none;
 }
 
-/* Subtle Scrollbar styles matching high-end terminals */
+button,
+input {
+  font: inherit;
+  letter-spacing: 0;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  color: var(--foreground);
+}
+
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
@@ -67,38 +103,65 @@ h1, h2, h3, h4, .font-display {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(248, 250, 252, 0.06);
-  border-radius: 99px;
+  background: color-mix(in srgb, var(--border-strong) 58%, transparent);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(248, 250, 252, 0.15);
+.serif-title {
+  font-family: var(--font-serif);
+  font-variant-numeric: oldstyle-nums;
+  letter-spacing: 0;
 }
 
-/* -------------------------------------------
-   Premium Editorial UI PRIMITIVES
-   ------------------------------------------- */
-.glass-panel {
-  background: var(--color-terminal-card);
-  border: 1px solid var(--color-terminal-border);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.15);
-  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+.sans-body {
+  font-family: var(--font-sans);
 }
 
-.glass-panel:hover {
-  background: rgba(18, 22, 32, 0.55);
-  border-color: var(--color-terminal-border-active);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
-  transform: translateY(-1px);
+.editorial-card {
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  border: 1px solid var(--border);
+  box-shadow: var(--editorial-shadow);
 }
 
-/* High-signal status indicator without heavy animations */
-.terminal-status-glow {
-  background-color: #10b981;
-  box-shadow: 0 0 6px rgba(16, 185, 129, 0.3);
+.editorial-line {
+  border-color: var(--border);
+}
+
+.section-rule {
+  border-top: 1px solid var(--border);
 }
 
 .mask-gradient-right {
-  mask-image: linear-gradient(to right, black 85%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
+  mask-image: linear-gradient(to right, black 86%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black 86%, transparent 100%);
 }
+
+.article-prose p {
+  margin: 0 0 1.1rem;
+}
+
+.article-prose p:first-of-type {
+  font-size: 1.08rem;
+  line-height: 1.75;
+}
+
+.tone-grid {
+  background-image:
+    linear-gradient(to right, var(--ink-soft) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--ink-soft) 1px, transparent 1px);
+  background-size: 34px 34px;
+}
+
+.line-clamp-1,
+.line-clamp-2,
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-1 { -webkit-line-clamp: 1; }
+.line-clamp-2 { -webkit-line-clamp: 2; }
+.line-clamp-3 { -webkit-line-clamp: 3; }

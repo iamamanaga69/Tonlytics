@@ -45,6 +45,6 @@ export function formatBriefingForTelegram(briefing: Briefing, baseAppUrl = 'http
     ``,
     escapedTags,
     ``,
-    `🔗 [Read on Tonlytics Terminal](${webLink})`
+    `🔗 [Read on Tonlytics](${webLink})`
   ].join('\n');
 }

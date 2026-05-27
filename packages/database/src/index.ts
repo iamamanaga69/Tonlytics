@@ -594,5 +594,111 @@ export const dbService = {
       if (!error && data) return data as { briefing_id: string; embedding: number[] }[];
     }
     return [];
+  },
+
+  // --- insert verified sources (with URL dedup) ---
+  async insertSources(sources: { name: string; url: string; source_type: Source['source_type']; reliability_score: number }[]): Promise<number> {
+    if (isSupabaseConfigured && supabaseAdmin) {
+      const payload = sources.map(s => ({
+        name: s.name,
+        url: s.url,
+        source_type: s.source_type,
+        reliability_score: s.reliability_score,
+        is_active: true
+      }));
+      const { data, error } = await supabaseAdmin.from('sources').upsert(payload, { onConflict: 'url', ignoreDuplicates: true }).select();
+      if (!error && data) return data.length;
+      console.error('[DB] Failed to insert sources:', error);
+      return 0;
+    }
+
+    // Mock fallback: add to MOCK_SOURCES if not already present
+    let added = 0;
+    for (const s of sources) {
+      if (!MOCK_SOURCES.some(existing => existing.url === s.url)) {
+        MOCK_SOURCES.push({
+          id: `source-${Math.random().toString(36).slice(2, 9)}`,
+          name: s.name,
+          url: s.url,
+          source_type: s.source_type,
+          reliability_score: s.reliability_score,
+          is_active: true,
+          created_at: new Date().toISOString()
+        });
+        added++;
+      }
+    }
+    return added;
+  },
+
+  // --- get briefing by ID ---
+  async getBriefingById(id: string): Promise<Briefing | null> {
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase.from('briefings').select('*').eq('id', id).single();
+      if (!error && data) return data as Briefing;
+    }
+    const mock = localMockBriefings.find(b => b.id === id);
+    return mock || null;
+  },
+
+  // --- get source by ID ---
+  async getSourceById(sourceId: string): Promise<Source | null> {
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase.from('sources').select('*').eq('id', sourceId).single();
+      if (!error && data) return data as Source;
+    }
+    const mock = MOCK_SOURCES.find(s => s.id === sourceId);
+    return mock || null;
+  },
+
+  // --- get recent briefings (sliding window for duplicate detection) ---
+  async getRecentBriefings(days: number = 7): Promise<Briefing[]> {
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase
+        .from('briefings')
+        .select('*')
+        .gte('created_at', cutoff)
+        .order('created_at', { ascending: false });
+      if (!error && data) return data as Briefing[];
+    }
+    return localMockBriefings.filter(b => b.created_at >= cutoff);
+  },
+
+  // --- prune old records ---
+  async pruneOldRawUpdates(days: number = 14): Promise<number> {
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    if (isSupabaseConfigured && supabaseAdmin) {
+      const { data, error } = await supabaseAdmin
+        .from('raw_updates')
+        .delete()
+        .in('status', ['processed', 'filtered'])
+        .lt('created_at', cutoff)
+        .select();
+      if (!error && data) return data.length;
+      return 0;
+    }
+    const before = localRawUpdates.length;
+    localRawUpdates = localRawUpdates.filter(r =>
+      !(['processed', 'filtered'].includes(r.status)) || r.created_at >= cutoff
+    );
+    return before - localRawUpdates.length;
+  },
+
+  // --- prune old automation logs ---
+  async pruneOldAutomationLogs(days: number = 30): Promise<number> {
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    if (isSupabaseConfigured && supabaseAdmin) {
+      const { data, error } = await supabaseAdmin
+        .from('automation_logs')
+        .delete()
+        .lt('created_at', cutoff)
+        .select();
+      if (!error && data) return data.length;
+      return 0;
+    }
+    const before = localLogs.length;
+    localLogs = localLogs.filter(l => l.created_at >= cutoff);
+    return before - localLogs.length;
   }
 };

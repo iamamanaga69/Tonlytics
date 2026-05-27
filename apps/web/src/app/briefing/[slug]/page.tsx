@@ -1,340 +1,388 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { 
-  ArrowLeft, 
-  Clock, 
-  Eye, 
-  Send, 
-  Calendar, 
-  Layers, 
-  Smartphone, 
-  Coins, 
-  Shuffle, 
-  Globe, 
-  ExternalLink, 
-  ChevronRight, 
-  ChevronLeft,
-  Share2,
+import {
+  ArrowLeft,
   Bookmark,
-  AlertTriangle,
-  FileText,
-  TrendingUp,
-  Link
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  ExternalLink,
+  Eye,
+  Link as LinkIcon,
+  MessageCircle,
+  PlayCircle,
+  Share2,
+  ShieldCheck,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useTelegram } from '@/hooks/useTelegram';
 import type { Briefing } from '@/types';
 import ImageWithFallback from '@/components/terminal/ImageWithFallback';
+import { getReadingTime } from '@/components/terminal/BriefingCard';
 
 export default function ArticleDetail() {
   const params = useParams();
   const router = useRouter();
   const { triggerHaptic } = useTelegram();
   const [isImageBroken, setIsImageBroken] = useState(false);
-  
   const [briefing, setBriefing] = useState<Briefing | null>(null);
   const [adjacent, setAdjacent] = useState<{ prev: Briefing | null; next: Briefing | null }>({ prev: null, next: null });
   const [isLoading, setIsLoading] = useState(true);
   const [isCopied, setIsCopied] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     const slug = params.slug as string;
     if (!slug) return;
 
-    const fetchArticleDetails = async () => {
+    async function fetchArticleDetails() {
       setIsLoading(true);
       try {
-        // Fetch current briefing from listings
         const response = await fetch(`/api/briefings`);
         const data = await response.json();
         if (data.success && data.briefings) {
           const allBriefs = data.briefings as Briefing[];
-          const current = allBriefs.find(b => b.slug === slug);
-          
+          const current = allBriefs.find((b) => b.slug === slug);
+
           if (current) {
             setBriefing(current);
-            
-            // Increment views count silently on server
             fetch(`/api/briefings/view?id=${current.id}`, { method: 'POST' }).catch(() => {});
             current.views_count += 1;
 
-            // Find adjacent briefings
-            const index = allBriefs.findIndex(b => b.id === current.id);
+            const index = allBriefs.findIndex((b) => b.id === current.id);
             setAdjacent({
               prev: index > 0 ? allBriefs[index - 1] : null,
-              next: index < allBriefs.length - 1 ? allBriefs[index + 1] : null
+              next: index < allBriefs.length - 1 ? allBriefs[index + 1] : null,
             });
           }
         }
-      } catch (err) {
-        console.error('Failed to load article details:', err);
       } finally {
         setIsLoading(false);
       }
-    };
+    }
 
     fetchArticleDetails();
   }, [params.slug]);
 
-  const handleBackToDashboard = () => {
-    triggerHaptic('light');
-    router.push('/');
-  };
+  useEffect(() => {
+    const onScroll = () => {
+      const scrollTop = window.scrollY;
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      setProgress(docHeight > 0 ? Math.min(100, Math.max(0, (scrollTop / docHeight) * 100)) : 0);
+    };
+
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  const paragraphs = useMemo(() => briefing?.briefing.split('\n\n').filter(Boolean) || [], [briefing]);
 
   const handleShare = () => {
     triggerHaptic('light');
     if (typeof window !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(window.location.href);
       setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2000);
+      setTimeout(() => setIsCopied(false), 1800);
     }
   };
 
   if (isLoading) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center min-h-screen bg-[#040609] gap-4 font-mono text-[9px] tracking-wider uppercase font-bold text-slate-500">
-        <div className="relative w-10 h-10 flex items-center justify-center">
-          <div className="absolute w-full h-full rounded-full border border-sky-500/20 border-t-sky-500 animate-spin" />
-          <span className="text-sky-500 font-sans text-xs">T</span>
+      <div className="flex min-h-screen items-center justify-center bg-editorial-bg px-6 text-center">
+        <div>
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border border-editorial-border border-t-editorial-accent" />
+          <p className="mt-4 text-sm font-bold text-editorial-text-subtle">Loading story</p>
         </div>
-        <span>Syncing Intelligence...</span>
       </div>
     );
   }
 
   if (!briefing) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center min-h-screen bg-[#040609] text-center p-6 gap-4 font-mono">
-        <AlertTriangle className="w-8 h-8 text-amber-500" />
-        <h3 className="text-slate-400 font-bold text-xs uppercase tracking-wider">Ecosystem update not found</h3>
-        <p className="text-[10px] text-slate-600 max-w-xs">The requested summary has not passed trust verification filters.</p>
-        <button onClick={handleBackToDashboard} className="mt-4 px-4 py-2 border border-slate-900 bg-slate-950 text-slate-400 rounded-lg hover:border-slate-800 text-[10px] tracking-widest font-bold uppercase transition-all">
-          Return to Terminal
-        </button>
+      <div className="flex min-h-screen items-center justify-center bg-editorial-bg px-6 text-center">
+        <div className="max-w-sm">
+          <h1 className="serif-title text-3xl font-black">Story not found</h1>
+          <p className="mt-2 text-sm text-editorial-text-subtle">This briefing may have been unpublished or moved.</p>
+          <button
+            onClick={() => router.push('/')}
+            className="mt-5 rounded-sm border border-editorial-border px-4 py-2 text-sm font-bold hover:border-editorial-border-hover"
+          >
+            Back to homepage
+          </button>
+        </div>
       </div>
     );
   }
 
-  const categoryIcons = {
-    Infrastructure: Layers,
-    'Mini Apps': Smartphone,
-    DeFi: Coins,
-    Integration: Shuffle,
-    Ecosystem: Globe,
-  };
-  
-  const Icon = categoryIcons[briefing.category] || Globe;
-
-  const getCategoryTheme = (cat: string) => {
-    switch (cat) {
-      case 'Infrastructure':
-        return { text: 'text-indigo-400', border: 'border-indigo-900/35', bg: 'bg-indigo-950/20', glow: 'from-indigo-600/5' };
-      case 'Mini Apps':
-        return { text: 'text-emerald-400', border: 'border-emerald-900/35', bg: 'bg-emerald-950/20', glow: 'from-emerald-600/5' };
-      case 'DeFi':
-        return { text: 'text-amber-400', border: 'border-amber-900/35', bg: 'bg-amber-950/20', glow: 'from-amber-600/5' };
-      case 'Integration':
-        return { text: 'text-purple-400', border: 'border-purple-900/35', bg: 'bg-purple-950/20', glow: 'from-purple-600/5' };
-      default:
-        return { text: 'text-sky-400', border: 'border-sky-900/35', bg: 'bg-sky-950/20', glow: 'from-sky-600/5' };
-    }
-  };
-
-  const theme = getCategoryTheme(briefing.category);
+  const readingTime = getReadingTime(briefing);
+  const sourceHost = getHost(briefing.source_url);
 
   return (
-    <div className="flex-1 flex flex-col w-full min-h-screen bg-[#040609] select-text">
-      
-      {/* Soft Glow Backdrop */}
-      <div className={`absolute top-0 inset-x-0 h-[450px] bg-gradient-to-b ${theme.glow} to-transparent opacity-30 pointer-events-none blur-3xl z-0`} />
+    <div className="min-h-screen bg-editorial-bg text-foreground">
+      <div className="fixed left-0 top-0 z-50 h-1 bg-editorial-accent transition-all" style={{ width: `${progress}%` }} />
 
-      {/* NAVIGATION TOOLBAR */}
-      <nav className="w-full bg-[#080b11]/30 backdrop-blur-md border-b border-slate-900/40 py-4 px-4 md:px-8 flex items-center justify-between shrink-0 z-40 sticky top-0">
-        <button
-          onClick={handleBackToDashboard}
-          className="flex items-center gap-2 text-slate-400 hover:text-slate-200 text-[10px] font-bold uppercase tracking-wider font-mono cursor-pointer transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4 text-slate-500" />
-          <span>Aggregation Feed</span>
-        </button>
-
-        <div className="flex items-center gap-3 shrink-0">
+      <nav className="sticky top-0 z-40 border-b border-editorial-border bg-editorial-card/95 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 md:px-6">
           <button
-            onClick={handleShare}
-            className="w-8 h-8 rounded-xl bg-slate-950/50 border border-slate-900 hover:border-slate-800 flex items-center justify-center text-slate-450 hover:text-slate-200 transition-colors relative cursor-pointer"
+            onClick={() => {
+              triggerHaptic('light');
+              router.push('/');
+            }}
+            className="flex items-center gap-2 text-sm font-bold text-editorial-text-subtle hover:text-foreground"
           >
-            <Share2 className="w-3.5 h-3.5" />
-            <AnimatePresence>
-              {isCopied && (
-                <motion.span
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="absolute -bottom-8 right-0 bg-[#080b11] border border-slate-900 text-sky-400 text-[8px] font-bold font-mono uppercase tracking-widest px-2 py-0.5 rounded shadow-xl whitespace-nowrap"
-                >
-                  Link Copied
-                </motion.span>
-              )}
-            </AnimatePresence>
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back to Tonlytics</span>
           </button>
-          <button className="w-8 h-8 rounded-xl bg-slate-950/50 border border-slate-900 hover:border-slate-800 flex items-center justify-center text-slate-450 hover:text-slate-200 transition-colors cursor-pointer">
-            <Bookmark className="w-3.5 h-3.5" />
-          </button>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsSaved((saved) => !saved)}
+              className="flex h-9 w-9 items-center justify-center rounded-sm border border-editorial-border hover:border-editorial-border-hover"
+              aria-label="Save story"
+            >
+              <Bookmark className={`h-4 w-4 ${isSaved ? 'fill-editorial-accent text-editorial-accent' : 'text-editorial-text-subtle'}`} />
+            </button>
+            <button
+              onClick={handleShare}
+              className="relative flex h-9 w-9 items-center justify-center rounded-sm border border-editorial-border hover:border-editorial-border-hover"
+              aria-label="Share story"
+            >
+              <Share2 className="h-4 w-4 text-editorial-text-subtle" />
+              <AnimatePresence>
+                {isCopied && (
+                  <motion.span
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="absolute right-0 top-11 rounded-sm border border-editorial-border bg-editorial-card px-2 py-1 text-xs font-bold text-editorial-accent shadow-xl"
+                  >
+                    Copied
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </button>
+          </div>
         </div>
       </nav>
 
-      {/* IMMERSIVE CONTENT GRID */}
-      <main className="flex-1 max-w-3xl w-full mx-auto py-8 px-4 md:px-6 relative z-10">
-        
-        <article className="flex flex-col gap-6 md:gap-8">
-          
-          {/* 1 & 2. Official Thumbnail Visual (ONLY if available; no AI mockups) */}
-          {briefing.image_url && !isImageBroken && (
-            <div className="w-full relative aspect-[21/9] rounded-2xl overflow-hidden border border-slate-900/60 bg-slate-950 shadow-2xl z-10">
-              <ImageWithFallback
-                src={briefing.image_url}
-                alt={briefing.title}
-                className="w-full h-full object-contain p-6 bg-slate-950/60 object-center opacity-90"
-                onFallbackTriggered={() => setIsImageBroken(true)}
-              />
-            </div>
-          )}
-
-          {/* 3 & 4. Category and Title display */}
-          <div className="flex flex-col gap-3">
-            
-            {/* Category badge */}
-            <div className="flex items-center gap-2">
-              <span className={`px-2.5 py-0.5 rounded-full border text-[8px] font-mono tracking-widest uppercase font-bold ${theme.text} ${theme.border} ${theme.bg}`}>
-                {briefing.category}
-              </span>
-              <span className="text-[8px] font-mono tracking-widest uppercase font-bold text-slate-500 bg-slate-950/40 px-2 py-0.5 rounded-full">
-                via {briefing.source_name || 'Ecosystem Aggregator'}
-              </span>
+      <main className="mx-auto max-w-6xl px-4 py-7 md:px-6 md:py-10">
+        <article>
+          <header className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-end">
+            <div>
+              <div className="flex flex-wrap items-center gap-3 text-sm font-semibold text-editorial-text-subtle">
+                <span className="font-extrabold text-editorial-accent">{briefing.category}</span>
+                <span>{briefing.source_name || sourceHost || 'Verified source'}</span>
+                <span className="flex items-center gap-1"><Calendar className="h-4 w-4" /> {formatDate(briefing.published_at)}</span>
+              </div>
+              <h1 className="serif-title mt-4 max-w-4xl text-4xl font-black leading-none md:text-6xl">
+                {briefing.title}
+              </h1>
+              <p className="mt-5 max-w-3xl text-lg leading-relaxed text-editorial-text-subtle md:text-xl">
+                {briefing.why_it_matters}
+              </p>
             </div>
 
-            {/* Title display */}
-            <h1 className="text-xl md:text-3xl font-extrabold text-slate-100 leading-tight font-display tracking-tight mt-1.5">
-              {briefing.title}
-            </h1>
-
-            {/* 5. Metadata Telemetry Row */}
-            <div className="flex flex-wrap items-center gap-y-2 gap-x-4 text-[8px] font-mono tracking-wider uppercase text-slate-550 font-semibold border-b border-slate-900/30 pb-3.5 mt-1">
-              <div className="flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-slate-650" />
-                <span>Aggregated {new Date(briefing.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+            <aside className="editorial-card rounded-sm p-4">
+              <div className="grid gap-3 text-sm text-editorial-text-subtle">
+                <MetaRow icon={Clock} label={`${readingTime} min read`} />
+                <MetaRow icon={Eye} label={`${briefing.views_count} reads`} />
+                <MetaRow icon={ShieldCheck} label={`Source quality ${briefing.source_quality_score}%`} />
               </div>
-              <span className="h-2 w-px bg-slate-900" />
-              <div className="flex items-center gap-1.5">
-                <Eye className="w-3.5 h-3.5 text-slate-650" />
-                <span>{briefing.views_count} checks</span>
-              </div>
-              <span className="h-2 w-px bg-slate-900" />
-              <div className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-slate-650" />
-                <span>1 min summary read</span>
-              </div>
-            </div>
-          </div>
-
-          {/* 6. Concise Curation Aggregated summary */}
-          <div className="text-slate-350 text-xs md:text-sm leading-relaxed space-y-4 font-normal">
-            {briefing.briefing.split('\n\n').map((paragraph, index) => (
-              <p key={index}>{paragraph}</p>
-            ))}
-          </div>
-
-          {/* 8. Factual Key Takeaways (3 Bullet highlights) */}
-          {briefing.key_takeaways && briefing.key_takeaways.length > 0 && (
-            <div className="flex flex-col gap-3 p-5 border border-slate-900/60 bg-[#07090e]/30 rounded-2xl">
-              <div className="flex items-center gap-1.5 border-b border-slate-900/35 pb-2">
-                <FileText className="w-3.5 h-3.5 text-sky-400" />
-                <h3 className="text-[9px] font-mono tracking-widest text-slate-450 font-bold uppercase">Factual Key Highlights</h3>
-              </div>
-              
-              <ul className="flex flex-col gap-3">
-                {briefing.key_takeaways.map((takeaway, i) => (
-                  <li key={i} className="flex items-start gap-2.5 text-xs text-slate-300 leading-relaxed font-medium">
-                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500/40 mt-1.5 shrink-0" />
-                    <span>{takeaway}</span>
-                  </li>
+              <div className="mt-4 flex flex-wrap gap-2 border-t border-editorial-border pt-4">
+                {briefing.tags.map((tag) => (
+                  <span key={tag} className="rounded-sm bg-editorial-muted px-2 py-1 text-xs font-semibold text-editorial-text-subtle">
+                    {tag}
+                  </span>
                 ))}
-              </ul>
-            </div>
-          )}
-
-          {/* 7. "Why It Matters" (Sleek callout block) */}
-          <div className="border-l border-sky-500/25 pl-4 flex flex-col gap-1.5 my-1">
-            <span className="text-[9px] font-mono tracking-widest text-slate-550 font-bold uppercase">
-              Ecosystem Relevance Analysis
-            </span>
-            <p className="text-slate-200 text-xs md:text-sm leading-relaxed font-semibold">
-              {briefing.why_it_matters}
-            </p>
-          </div>
-
-          {/* Canonical Redirection Redirect CTA (Aggregators strictly redirect to canonical URL!) */}
-          {briefing.source_url && (
-            <div className="glass-panel p-5.5 rounded-2xl border border-slate-900 bg-slate-950/20 text-center flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-2">
-              <div className="flex flex-col gap-1 text-left">
-                <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider font-mono">Original Document Aggregated</h4>
-                <p className="text-[9px] text-slate-500 font-mono">Tonlytics respects copyright. Redirect back to the official channel or portal for complete text.</p>
               </div>
-              
-              <a
-                href={`/api/redirect?id=${briefing.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => triggerHaptic('light')}
-                className="px-5 py-2.5 bg-sky-500/10 border border-sky-500/20 hover:bg-sky-500/15 text-[10px] font-bold text-sky-400 uppercase tracking-widest rounded-xl transition-all cursor-pointer font-mono shrink-0 flex items-center justify-center gap-1.5"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                <span>Read Full Article</span>
-              </a>
-            </div>
-          )}
+            </aside>
+          </header>
 
-          {/* Interactive Navigation Row (Next/Previous slide controls) */}
-          <div className="flex items-center justify-between border-t border-slate-900/40 pt-6 mt-6">
-            {adjacent.prev ? (
-              <a
-                href={`/briefing/${adjacent.prev.slug}`}
-                onClick={() => triggerHaptic('light')}
-                className="flex items-center gap-3 p-3 max-w-[45%] text-left hover:-translate-x-0.5 transition-all"
-              >
-                <ChevronLeft className="w-4 h-4 text-slate-500 shrink-0" />
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[7px] font-mono uppercase text-slate-550 font-bold">Previous aggregation</span>
-                  <span className="text-[11px] text-slate-400 font-bold leading-tight line-clamp-1 font-display">{adjacent.prev.title}</span>
-                </div>
-              </a>
+          <div className="mt-8 overflow-hidden rounded-sm border border-editorial-border bg-editorial-card">
+            {briefing.image_url && !isImageBroken ? (
+              <div className="aspect-[16/9] md:aspect-[21/9]">
+                <ImageWithFallback
+                  src={briefing.image_url}
+                  alt={briefing.title}
+                  className="h-full w-full object-cover"
+                  onFallbackTriggered={() => setIsImageBroken(true)}
+                />
+              </div>
             ) : (
-              <div />
-            )}
-
-            {adjacent.next ? (
-              <a
-                href={`/briefing/${adjacent.next.slug}`}
-                onClick={() => triggerHaptic('light')}
-                className="flex items-center gap-3 p-3 max-w-[45%] text-right hover:translate-x-0.5 transition-all"
-              >
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[7px] font-mono uppercase text-slate-550 font-bold">Next aggregation</span>
-                  <span className="text-[11px] text-slate-400 font-bold leading-tight line-clamp-1 font-display">{adjacent.next.title}</span>
-                </div>
-                <ChevronRight className="w-4 h-4 text-slate-500 shrink-0" />
-              </a>
-            ) : (
-              <div />
+              <div className="tone-grid flex aspect-[16/9] items-end p-6 md:aspect-[21/9]">
+                <span className="serif-title text-7xl font-black text-editorial-accent md:text-9xl">TON</span>
+              </div>
             )}
           </div>
 
+          <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,720px)_260px] lg:items-start">
+            <div className="article-prose text-[17px] leading-8 text-foreground">
+              {paragraphs.map((paragraph, index) => (
+                <p key={index}>{paragraph}</p>
+              ))}
+
+              {briefing.key_takeaways && briefing.key_takeaways.length > 0 && (
+                <section className="my-8 rounded-sm border border-editorial-border bg-editorial-card p-5">
+                  <h2 className="text-sm font-extrabold uppercase text-editorial-text-subtle">Key Takeaways</h2>
+                  <ol className="mt-4 grid gap-3">
+                    {briefing.key_takeaways.map((takeaway, index) => (
+                      <li key={takeaway} className="grid grid-cols-[34px_1fr] gap-3 text-base leading-relaxed">
+                        <span className="serif-title text-2xl font-black text-editorial-accent">{index + 1}</span>
+                        <span>{takeaway}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+              )}
+
+              <section className="my-8 border-y border-editorial-border py-6">
+                <p className="text-sm font-extrabold uppercase text-editorial-text-subtle">Why it matters</p>
+                <blockquote className="serif-title mt-2 text-2xl font-bold leading-snug">
+                  {briefing.why_it_matters}
+                </blockquote>
+              </section>
+
+              <EmbeddedReferences briefing={briefing} />
+            </div>
+
+            <aside className="grid gap-4 lg:sticky lg:top-24">
+              {briefing.source_url && (
+                <a
+                  href={`/api/redirect?id=${briefing.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => triggerHaptic('light')}
+                  className="editorial-card flex items-center justify-between rounded-sm p-4 text-sm font-bold hover:border-editorial-border-hover"
+                >
+                  <span>Read original source</span>
+                  <ExternalLink className="h-4 w-4 text-editorial-accent" />
+                </a>
+              )}
+
+              <div className="editorial-card rounded-sm p-4">
+                <h2 className="text-sm font-extrabold uppercase text-editorial-text-subtle">Protocol References</h2>
+                <div className="mt-3 grid gap-2">
+                  {(briefing.related_protocols || []).length > 0 ? (
+                    briefing.related_protocols?.map((protocol) => (
+                      <a key={protocol.name} href={protocol.url} className="rounded-sm border border-editorial-border px-3 py-2 text-sm font-semibold hover:border-editorial-border-hover">
+                        {protocol.name}
+                      </a>
+                    ))
+                  ) : (
+                    briefing.tags.slice(0, 4).map((tag) => (
+                      <span key={tag} className="rounded-sm border border-editorial-border px-3 py-2 text-sm font-semibold">
+                        {tag}
+                      </span>
+                    ))
+                  )}
+                </div>
+              </div>
+            </aside>
+          </div>
+
+          <nav className="mt-10 grid gap-3 border-t border-editorial-border pt-6 md:grid-cols-2">
+            <AdjacentLink direction="Previous" briefing={adjacent.prev} icon={ChevronLeft} />
+            <AdjacentLink direction="Next" briefing={adjacent.next} icon={ChevronRight} alignRight />
+          </nav>
         </article>
-
       </main>
-
     </div>
   );
+}
+
+function MetaRow({ icon: Icon, label }: { icon: React.ComponentType<{ className?: string }>; label: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <Icon className="h-4 w-4 text-editorial-accent" />
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function EmbeddedReferences({ briefing }: { briefing: Briefing }) {
+  const isTelegram = briefing.source_url?.includes('t.me/');
+  const isX = briefing.discussion_url?.includes('x.com') || briefing.discussion_url?.includes('twitter.com');
+
+  return (
+    <section className="my-8 grid gap-3">
+      <h2 className="text-sm font-extrabold uppercase text-editorial-text-subtle">Ecosystem References</h2>
+      {briefing.video_url && (
+        <a href={briefing.video_url} target="_blank" rel="noopener noreferrer" className="editorial-card flex items-center gap-3 rounded-sm p-4 text-sm font-bold">
+          <PlayCircle className="h-5 w-5 text-editorial-accent" />
+          Related video
+        </a>
+      )}
+      {isTelegram && (
+        <a href={briefing.source_url} target="_blank" rel="noopener noreferrer" className="editorial-card flex items-center gap-3 rounded-sm p-4 text-sm font-bold">
+          <MessageCircle className="h-5 w-5 text-editorial-accent" />
+          Telegram source post
+        </a>
+      )}
+      {isX && briefing.discussion_url && (
+        <a href={briefing.discussion_url} target="_blank" rel="noopener noreferrer" className="editorial-card flex items-center gap-3 rounded-sm p-4 text-sm font-bold">
+          <LinkIcon className="h-5 w-5 text-editorial-accent" />
+          Public discussion
+        </a>
+      )}
+      {!briefing.video_url && !isTelegram && !isX && (
+        <p className="rounded-sm border border-editorial-border bg-editorial-muted p-4 text-sm text-editorial-text-subtle">
+          No official embedded media is attached to this briefing yet.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function AdjacentLink({
+  direction,
+  briefing,
+  icon: Icon,
+  alignRight = false,
+}: {
+  direction: string;
+  briefing: Briefing | null;
+  icon: React.ComponentType<{ className?: string }>;
+  alignRight?: boolean;
+}) {
+  if (!briefing) return <div />;
+
+  return (
+    <a
+      href={`/briefing/${briefing.slug}`}
+      className={`rounded-sm border border-editorial-border p-4 hover:border-editorial-border-hover ${alignRight ? 'text-right' : ''}`}
+    >
+      <div className={`flex items-center gap-2 text-xs font-extrabold uppercase text-editorial-text-subtle ${alignRight ? 'justify-end' : ''}`}>
+        {!alignRight && <Icon className="h-4 w-4" />}
+        {direction}
+        {alignRight && <Icon className="h-4 w-4" />}
+      </div>
+      <p className="serif-title mt-2 line-clamp-2 text-xl font-black leading-tight">{briefing.title}</p>
+    </a>
+  );
+}
+
+function formatDate(isoString: string): string {
+  try {
+    return new Date(isoString).toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  } catch {
+    return 'Recently';
+  }
+}
+
+function getHost(url?: string): string {
+  if (!url) return '';
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
 }
