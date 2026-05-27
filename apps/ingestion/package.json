@@ -15,7 +15,8 @@
     "telemetry": "*",
     "config": "*",
     "extraction": "*",
-    "types": "*"
+    "types": "*",
+    "ai": "*"
   },
   "devDependencies": {
     "typescript": "^5.0.0"

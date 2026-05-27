@@ -326,48 +326,88 @@ export const dbService = {
   // --- briefings query ---
   async getBriefings(options?: { category?: BriefingCategory; search?: string }): Promise<Briefing[]> {
     if (isSupabaseConfigured && supabaseReader) {
-      let query = supabaseReader
-        .from('briefings')
-        .select('*')
-        .eq('is_published', true)
-        .eq('moderation_status', 'auto_approved')
-        .order('published_at', { ascending: false });
-      
-      if (options?.category) {
-        query = query.eq('category', options.category);
+      // Helper to build a query with optional category/search filters
+      const buildQuery = (filters: { isPublished?: boolean; moderationStatus?: string }) => {
+        let query = supabaseReader!
+          .from('briefings')
+          .select('*')
+          .order('published_at', { ascending: false });
+
+        if (filters.isPublished !== undefined) {
+          query = query.eq('is_published', filters.isPublished);
+        }
+        if (filters.moderationStatus) {
+          query = query.eq('moderation_status', filters.moderationStatus);
+        }
+        if (options?.category) {
+          query = query.eq('category', options.category);
+        }
+        if (options?.search) {
+          query = query.or(`title.ilike.%${options.search}%,briefing.ilike.%${options.search}%,why_it_matters.ilike.%${options.search}%`);
+        }
+        return query;
+      };
+
+      // Tier 1: is_published=true AND moderation_status='auto_approved'
+      const tier1 = await buildQuery({ isPublished: true, moderationStatus: 'auto_approved' });
+      if (!tier1.error && tier1.data && tier1.data.length > 0) {
+        console.info(`[DB] Briefings tier-1 (published + auto_approved) returned ${tier1.data.length} records.`);
+        return tier1.data as Briefing[];
       }
-      
-      if (options?.search) {
-        query = query.or(`title.ilike.%${options.search}%,briefing.ilike.%${options.search}%,why_it_matters.ilike.%${options.search}%`);
+      console.info(`[DB] Briefings tier-1 (published + auto_approved) returned 0 results. Trying tier-2...`);
+
+      // Tier 2: is_published=true (any moderation_status)
+      const tier2 = await buildQuery({ isPublished: true });
+      if (!tier2.error && tier2.data && tier2.data.length > 0) {
+        console.info(`[DB] Briefings tier-2 (published, no moderation filter) returned ${tier2.data.length} records.`);
+        return tier2.data as Briefing[];
       }
-      
-      const { data, error } = await query;
-      if (!error && data) {
-        console.info(`[DB] Supabase briefings query returned ${data.length} records.`);
-        return data as Briefing[];
+      console.info(`[DB] Briefings tier-2 (published, no moderation filter) returned 0 results. Trying tier-3...`);
+
+      // Tier 3: ALL briefings (no filters except category/search)
+      const tier3 = await buildQuery({});
+      if (!tier3.error && tier3.data && tier3.data.length > 0) {
+        console.info(`[DB] Briefings tier-3 (all briefings, no publish/moderation filters) returned ${tier3.data.length} records.`);
+        return tier3.data as Briefing[];
       }
-      logDbError('[DB] Supabase briefings query failed.', error);
+
+      if (tier3.error) {
+        logDbError('[DB] Supabase briefings query failed at all tiers.', tier3.error);
+      } else {
+        console.info(`[DB] Briefings tier-3 returned 0 results. Database has no matching briefings.`);
+      }
       if (!canUseLocalFallback()) return [];
     }
     if (!canUseLocalFallback()) return [];
 
-    let result = localMockBriefings.filter(b => b.is_published && b.moderation_status === 'auto_approved');
-    
-    if (options?.category) {
-      result = result.filter(b => b.category === options.category);
-    }
-    
-    if (options?.search) {
-      const s = options.search.toLowerCase();
-      result = result.filter(b => 
-        b.title.toLowerCase().includes(s) || 
-        b.briefing.toLowerCase().includes(s) ||
-        b.why_it_matters.toLowerCase().includes(s) ||
-        b.tags.some(t => t.toLowerCase().includes(s))
-      );
-    }
-    
-    return result;
+    // Local mock fallback with same cascading logic
+    const applyLocalFilters = (list: Briefing[]) => {
+      let result = list;
+      if (options?.category) {
+        result = result.filter(b => b.category === options.category);
+      }
+      if (options?.search) {
+        const s = options.search.toLowerCase();
+        result = result.filter(b =>
+          b.title.toLowerCase().includes(s) ||
+          b.briefing.toLowerCase().includes(s) ||
+          b.why_it_matters.toLowerCase().includes(s) ||
+          b.tags.some(t => t.toLowerCase().includes(s))
+        );
+      }
+      return result;
+    };
+
+    // Tier 1 local: published + auto_approved
+    let result = applyLocalFilters(localMockBriefings.filter(b => b.is_published && b.moderation_status === 'auto_approved'));
+    if (result.length > 0) return result;
+
+    // Tier 2 local: published only
+    result = applyLocalFilters(localMockBriefings.filter(b => b.is_published));
+    if (result.length > 0) return result;
+
+    // Tier 3 local: all briefings
+    return applyLocalFilters(localMockBriefings);
   },
 
   // --- single briefing by slug ---

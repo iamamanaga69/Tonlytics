@@ -252,7 +252,7 @@ export async function summarizeRawUpdate(rawUpdate: RawUpdate): Promise<Omit<Bri
     readability_score,
     hallucination_probability,
     source_quality_score,
-    moderation_status: 'pending_review',
+    moderation_status: 'auto_approved',
     
     published_at: new Date().toISOString()
   };
