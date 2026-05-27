@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import { dbService, isSupabaseConfigured, supabase } from 'database';
+import { dbService, isSupabaseConfigured, supabase, runDbMigrations } from 'database';
 import { logInfo, logError } from 'telemetry';
 import { env } from 'config';
 import { getRedisConnection } from 'queues';
@@ -86,6 +86,15 @@ app.get('/api/sources', async (req, res) => {
 
 // Start API Server
 app.listen(port, async () => {
+  // Run automated database migrations on startup if DATABASE_URL is set
+  if (process.env.DATABASE_URL) {
+    try {
+      await runDbMigrations();
+    } catch (migErr) {
+      logError('[STARTUP] Failed to run database migrations:', migErr);
+    }
+  }
+
   logInfo('==================================================');
   logInfo(`[STARTUP] Service: api`);
   logInfo(`[STARTUP] Port: ${port}`);

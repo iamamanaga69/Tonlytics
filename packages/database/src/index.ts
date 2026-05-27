@@ -5,9 +5,10 @@ import type { Briefing, BriefingCategory, RawUpdate, Source, AutomationLog, Mode
 import * as schema from './schema';
 
 export * from './schema';
+export { runDbMigrations } from './run-migrations';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const databaseUrl = process.env.DATABASE_URL || '';
 
@@ -700,5 +701,41 @@ export const dbService = {
     const before = localLogs.length;
     localLogs = localLogs.filter(l => l.created_at >= cutoff);
     return before - localLogs.length;
+  },
+
+  // --- persist live TON market data ---
+  async persistMarketData(data: {
+    price_usd: number;
+    volume_24h?: number;
+    market_cap?: number;
+    change_24h?: number;
+    last_updated: string;
+  }): Promise<void> {
+    if (isSupabaseConfigured && supabaseAdmin) {
+      const { error } = await supabaseAdmin
+        .from('market_data')
+        .insert([data]);
+      if (error) {
+        console.error('[DB] Failed to persist market data:', error.message);
+      }
+      return;
+    }
+  },
+
+  // --- persist wallet connection ---
+  async persistWalletConnection(wallet: {
+    address: string;
+    network?: string;
+    public_key?: string;
+  }): Promise<void> {
+    if (isSupabaseConfigured && supabaseAdmin) {
+      const { error } = await supabaseAdmin
+        .from('wallets')
+        .upsert([wallet], { onConflict: 'address' });
+      if (error) {
+        console.error('[DB] Failed to persist wallet connection:', error.message);
+      }
+      return;
+    }
   }
 };

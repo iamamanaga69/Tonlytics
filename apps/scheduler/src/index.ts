@@ -1,6 +1,6 @@
 import http from 'http';
 import { getQueue, getRedisConnection } from 'queues';
-import { dbService, isSupabaseConfigured, supabase } from 'database';
+import { dbService, isSupabaseConfigured, supabase, runDbMigrations } from 'database';
 import { logInfo, logError } from 'telemetry';
 import { VERIFIED_SOURCES } from 'config';
 
@@ -62,7 +62,12 @@ async function scheduleEcosystemCrawlers(): Promise<void> {
         },
         {
           jobId,
-          repeat: { pattern: cronPattern }
+          repeat: { pattern: cronPattern },
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 10000
+          }
         }
       );
     }
@@ -121,6 +126,15 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(port, async () => {
+  // Run automated database migrations on startup if DATABASE_URL is set
+  if (process.env.DATABASE_URL) {
+    try {
+      await runDbMigrations();
+    } catch (migErr) {
+      logError('[STARTUP] Failed to run database migrations:', migErr);
+    }
+  }
+
   logInfo('==================================================');
   logInfo(`[STARTUP] Service: scheduler`);
   logInfo(`[STARTUP] Port: ${port}`);

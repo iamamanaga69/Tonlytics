@@ -133,3 +133,72 @@ export interface BriefingEmbedding {
   embedding: number[];
   created_at: string;
 }
+
+export interface News {
+  id: string;
+  title: string;
+  content?: string;
+  source_url?: string;
+  published_at?: string;
+  created_at: string;
+}
+
+export interface Article {
+  id: string;
+  title: string;
+  slug: string;
+  content: string;
+  author?: string;
+  published_at?: string;
+  created_at: string;
+}
+
+export interface EcosystemUpdate {
+  id: string;
+  title: string;
+  description?: string;
+  category?: string;
+  project_url?: string;
+  created_at: string;
+}
+
+export interface MarketData {
+  id: string;
+  price_usd: number;
+  volume_24h?: number;
+  market_cap?: number;
+  change_24h?: number;
+  last_updated: string;
+  created_at: string;
+}
+
+export interface Wallet {
+  id: string;
+  address: string;
+  network?: string;
+  public_key?: string;
+  connected_at: string;
+}
+
+export interface User {
+  id: string;
+  email?: string;
+  wallet_address?: string;
+  created_at: string;
+}
+
+export interface TrendingTopic {
+  id: string;
+  topic: string;
+  mention_count: number;
+  last_seen_at: string;
+}
+
+export interface FeedCache {
+  id: string;
+  key: string;
+  data: any;
+  expires_at: string;
+  updated_at: string;
+}
+

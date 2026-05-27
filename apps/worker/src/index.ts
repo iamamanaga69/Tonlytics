@@ -1,6 +1,6 @@
 import { Worker, Job } from 'bullmq';
 import { getRedisConnection, QUEUE_NAMES, getQueue } from 'queues';
-import { dbService, isSupabaseConfigured, supabase } from 'database';
+import { dbService, isSupabaseConfigured, supabase, runDbMigrations } from 'database';
 import { logInfo, logError, logWarn } from 'telemetry';
 import { indexBriefing, deindexBriefing } from 'search';
 import { calculateDuplicateProbability, generateTextEmbedding } from 'embeddings';
@@ -37,6 +37,15 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(port, async () => {
+  // Run automated database migrations on startup if DATABASE_URL is set
+  if (process.env.DATABASE_URL) {
+    try {
+      await runDbMigrations();
+    } catch (migErr) {
+      logError('[STARTUP] Failed to run database migrations:', migErr);
+    }
+  }
+
   logInfo('==================================================');
   logInfo(`[STARTUP] Service: worker`);
   logInfo(`[STARTUP] Port: ${port}`);
@@ -198,6 +207,12 @@ const IngestionWorker = new Worker(
         await getQueue(QUEUE_NAMES.DUPLICATE_DETECTION).add(`check-duplicate-${update.id}`, {
           rawUpdateId: update.id,
           rawContent: update.raw_content
+        }, {
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 5000
+          }
         });
       }
 
@@ -273,6 +288,12 @@ const DuplicateDetectionWorker = new Worker(
           rawUpdateId,
           sourceUrl: rawUpdate.source_url,
           sourceId: rawUpdate.source_id
+        }, {
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 5000
+          }
         });
       }
 
@@ -328,6 +349,12 @@ const ExtractionWorker = new Worker(
           ogTitle,
           ogImage,
           ogDescription
+        }, {
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 5000
+          }
         });
       }
 
@@ -389,6 +416,12 @@ const AiEnrichmentWorker = new Worker(
         briefingId: savedBriefing.id,
         rawContent: briefing.briefing,
         title: briefing.title
+      }, {
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 5000
+        }
       });
 
       return { briefingId: savedBriefing.id };
@@ -447,6 +480,12 @@ const SemanticScoringWorker = new Worker(
         briefingId,
         imageUrl: briefing.image_url,
         sourceUrl: briefing.source_url
+      }, {
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 5000
+        }
       });
 
       return { status: 'passed', relevanceScore, spamProb, confidenceScore };
@@ -498,6 +537,12 @@ const MediaWorker = new Worker(
       await getQueue(QUEUE_NAMES.MODERATION).add(`moderate-${briefingId}`, {
         briefingId,
         confidenceScore: briefing?.confidence_score || 80
+      }, {
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 5000
+        }
       });
 
       return { processed: true };
@@ -536,6 +581,12 @@ const ModerationWorker = new Worker(
         await getQueue(QUEUE_NAMES.SEARCH).add(`index-${briefingId}`, {
           briefingId,
           action: 'index'
+        }, {
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 5000
+          }
         });
       }
 

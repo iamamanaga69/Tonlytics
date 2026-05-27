@@ -1,4 +1,5 @@
-import { logInfo } from 'telemetry';
+import { logInfo, logError } from 'telemetry';
+import { dbService } from 'database';
 
 export interface WalletSession {
   address: string;
@@ -37,5 +38,14 @@ export const wallet = {
       address: session.address,
       network: session.network,
     });
+    try {
+      await dbService.persistWalletConnection({
+        address: session.address,
+        network: session.network,
+        public_key: session.publicKey
+      });
+    } catch (err) {
+      logError('[SERVICES/WALLET] Failed to persist wallet connection in Supabase', err);
+    }
   }
 };

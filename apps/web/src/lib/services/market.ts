@@ -1,4 +1,5 @@
 import { logWarn } from 'telemetry';
+import { dbService } from 'database';
 
 export interface TonMarketData {
   priceUsd: number;
@@ -101,6 +102,18 @@ export const market = {
 
       cachedMarketData = nextData;
       lastFetchTime = now;
+
+      // Persist to Supabase in the background (fire and forget)
+      dbService.persistMarketData({
+        price_usd: priceUsd,
+        volume_24h: volume24h ?? undefined,
+        market_cap: marketCap ?? undefined,
+        change_24h: nextData.change24h,
+        last_updated: nextData.lastUpdated
+      }).catch(err => {
+        logWarn('[SERVICES/MARKET] Failed to persist market data to Supabase:', err);
+      });
+
       return nextData;
     } catch (error) {
       logWarn('[SERVICES/MARKET] CoinGecko market fetch failed', {

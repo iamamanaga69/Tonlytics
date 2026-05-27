@@ -130,6 +130,82 @@ CREATE TABLE IF NOT EXISTS briefing_embeddings (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- 11. NEWS
+CREATE TABLE IF NOT EXISTS news (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title VARCHAR(512) NOT NULL,
+  content TEXT,
+  source_url VARCHAR(512),
+  published_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 12. ARTICLES
+CREATE TABLE IF NOT EXISTS articles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title VARCHAR(512) NOT NULL,
+  slug VARCHAR(512) NOT NULL UNIQUE,
+  content TEXT NOT NULL,
+  author VARCHAR(255),
+  published_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 13. ECOSYSTEM UPDATES
+CREATE TABLE IF NOT EXISTS ecosystem_updates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title VARCHAR(512) NOT NULL,
+  description TEXT,
+  category VARCHAR(100),
+  project_url VARCHAR(512),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 14. MARKET DATA
+CREATE TABLE IF NOT EXISTS market_data (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  price_usd NUMERIC(20, 8) NOT NULL,
+  volume_24h NUMERIC(24, 2),
+  market_cap NUMERIC(24, 2),
+  change_24h NUMERIC(8, 4),
+  last_updated TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 15. WALLETS
+CREATE TABLE IF NOT EXISTS wallets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  address VARCHAR(255) NOT NULL UNIQUE,
+  network VARCHAR(50),
+  public_key VARCHAR(255),
+  connected_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 16. USERS
+CREATE TABLE IF NOT EXISTS users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email VARCHAR(255) UNIQUE,
+  wallet_address VARCHAR(255) REFERENCES wallets(address) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 17. TRENDING TOPICS
+CREATE TABLE IF NOT EXISTS trending_topics (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  topic VARCHAR(255) NOT NULL UNIQUE,
+  mention_count INTEGER NOT NULL DEFAULT 1,
+  last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 18. FEED CACHE
+CREATE TABLE IF NOT EXISTS feed_cache (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  key VARCHAR(255) NOT NULL UNIQUE,
+  data JSONB NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- =============================================
 -- ROW LEVEL SECURITY
 -- =============================================
@@ -142,6 +218,14 @@ ALTER TABLE media_assets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE source_telemetry ENABLE ROW LEVEL SECURITY;
 ALTER TABLE redirect_telemetry ENABLE ROW LEVEL SECURITY;
 ALTER TABLE briefing_embeddings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE news ENABLE ROW LEVEL SECURITY;
+ALTER TABLE articles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ecosystem_updates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE market_data ENABLE ROW LEVEL SECURITY;
+ALTER TABLE wallets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE trending_topics ENABLE ROW LEVEL SECURITY;
+ALTER TABLE feed_cache ENABLE ROW LEVEL SECURITY;
 
 -- Public read: published briefings only
 CREATE POLICY "Public can read published briefings"
@@ -152,6 +236,14 @@ CREATE POLICY "Public can read published briefings"
 CREATE POLICY "Public can read active sources"
   ON sources FOR SELECT
   USING (is_active = true);
+
+-- Public read: news, articles, ecosystem_updates, market_data, wallets, trending_topics
+CREATE POLICY "Public can read news" ON news FOR SELECT USING (true);
+CREATE POLICY "Public can read articles" ON articles FOR SELECT USING (true);
+CREATE POLICY "Public can read ecosystem_updates" ON ecosystem_updates FOR SELECT USING (true);
+CREATE POLICY "Public can read market_data" ON market_data FOR SELECT USING (true);
+CREATE POLICY "Public can read wallets" ON wallets FOR SELECT USING (true);
+CREATE POLICY "Public can read trending_topics" ON trending_topics FOR SELECT USING (true);
 
 -- Service role: full access on all tables
 CREATE POLICY "Service role full access on sources"
@@ -172,6 +264,22 @@ CREATE POLICY "Service role full access on redirect_telemetry"
   ON redirect_telemetry FOR ALL USING (auth.role() = 'service_role');
 CREATE POLICY "Service role full access on briefing_embeddings"
   ON briefing_embeddings FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY "Service role full access on news"
+  ON news FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY "Service role full access on articles"
+  ON articles FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY "Service role full access on ecosystem_updates"
+  ON ecosystem_updates FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY "Service role full access on market_data"
+  ON market_data FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY "Service role full access on wallets"
+  ON wallets FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY "Service role full access on users"
+  ON users FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY "Service role full access on trending_topics"
+  ON trending_topics FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY "Service role full access on feed_cache"
+  ON feed_cache FOR ALL USING (auth.role() = 'service_role');
 
 -- =============================================
 -- INDEXES

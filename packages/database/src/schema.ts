@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, integer, boolean, timestamp, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, integer, boolean, timestamp, jsonb, numeric } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // ==========================================
@@ -207,3 +207,110 @@ export const briefingEmbeddingsRelations = relations(briefingEmbeddings, ({ one 
     references: [briefings.id]
   })
 }));
+
+// ==========================================
+// 11. NEWS TABLE
+// ==========================================
+export const news = pgTable('news', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  title: varchar('title', { length: 512 }).notNull(),
+  content: text('content'),
+  sourceUrl: varchar('source_url', { length: 512 }),
+  publishedAt: timestamp('published_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+// ==========================================
+// 12. ARTICLES TABLE
+// ==========================================
+export const articles = pgTable('articles', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  title: varchar('title', { length: 512 }).notNull(),
+  slug: varchar('slug', { length: 512 }).notNull().unique(),
+  content: text('content').notNull(),
+  author: varchar('author', { length: 255 }),
+  publishedAt: timestamp('published_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+// ==========================================
+// 13. ECOSYSTEM UPDATES TABLE
+// ==========================================
+export const ecosystemUpdates = pgTable('ecosystem_updates', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  title: varchar('title', { length: 512 }).notNull(),
+  description: text('description'),
+  category: varchar('category', { length: 100 }),
+  projectUrl: varchar('project_url', { length: 512 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+// ==========================================
+// 14. MARKET DATA TABLE
+// ==========================================
+export const marketData = pgTable('market_data', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  priceUsd: numeric('price_usd', { precision: 20, scale: 8 }).notNull(),
+  volume24h: numeric('volume_24h', { precision: 24, scale: 2 }),
+  marketCap: numeric('market_cap', { precision: 24, scale: 2 }),
+  change24h: numeric('change_24h', { precision: 8, scale: 4 }),
+  lastUpdated: timestamp('last_updated', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+// ==========================================
+// 15. WALLETS TABLE
+// ==========================================
+export const wallets = pgTable('wallets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  address: varchar('address', { length: 255 }).notNull().unique(),
+  network: varchar('network', { length: 50 }),
+  publicKey: varchar('public_key', { length: 255 }),
+  connectedAt: timestamp('connected_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+// ==========================================
+// 16. USERS TABLE
+// ==========================================
+export const users = pgTable('users', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  email: varchar('email', { length: 255 }).unique(),
+  walletAddress: varchar('wallet_address', { length: 255 }).references(() => wallets.address, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+// ==========================================
+// 17. TRENDING TOPICS TABLE
+// ==========================================
+export const trendingTopics = pgTable('trending_topics', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  topic: varchar('topic', { length: 255 }).notNull().unique(),
+  mentionCount: integer('mention_count').default(1).notNull(),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+// ==========================================
+// 18. FEED CACHE TABLE
+// ==========================================
+export const feedCache = pgTable('feed_cache', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  key: varchar('key', { length: 255 }).notNull().unique(),
+  data: jsonb('data').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+// ==========================================
+// RELATIONAL LINKS FOR NEW TABLES
+// ==========================================
+export const usersRelations = relations(users, ({ one }) => ({
+  wallet: one(wallets, {
+    fields: [users.walletAddress],
+    references: [wallets.address]
+  })
+}));
+
+export const walletsRelations = relations(wallets, ({ many }) => ({
+  users: many(users)
+}));
+
