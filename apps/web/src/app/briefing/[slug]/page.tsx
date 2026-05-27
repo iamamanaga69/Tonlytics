@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTelegram } from '@/hooks/useTelegram';
+import { apiFetch } from '@/lib/api-client';
 import type { Briefing } from '@/types';
 import ImageWithFallback from '@/components/terminal/ImageWithFallback';
 import { getReadingTime } from '@/components/terminal/BriefingCard';
@@ -42,10 +43,12 @@ export default function ArticleDetail() {
     async function fetchArticleDetails() {
       setIsLoading(true);
       try {
-        const response = await fetch(`/api/briefings`);
-        const data = await response.json();
-        if (data.success && data.briefings) {
-          const allBriefs = data.briefings as Briefing[];
+        const data = await apiFetch<{ success?: boolean; briefings?: Briefing[]; data?: Briefing[] }>(
+          '/api/briefings',
+          { timeoutMs: 12_000 }
+        );
+        const allBriefs = data.briefings || data.data || [];
+        if (Array.isArray(allBriefs)) {
           const current = allBriefs.find((b) => b.slug === slug);
 
           if (current) {

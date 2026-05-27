@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Activity, BarChart3, CircleAlert, TrendingDown, TrendingUp } from 'lucide-react';
+import { apiFetch } from '@/lib/api-client';
 
 interface TonMarketData {
   priceUsd: number;
@@ -27,11 +28,7 @@ export default function MarketIntelligencePanel() {
 
     async function fetchMarket() {
       try {
-        const response = await fetch('/api/market');
-        if (!response.ok) {
-          throw new Error('market_unavailable');
-        }
-        const data = (await response.json()) as TonMarketData;
+        const data = await apiFetch<TonMarketData>('/api/market', { timeoutMs: 10_000 });
         if (isMounted) {
           setMarketData(data);
           setIsUnavailable(false);

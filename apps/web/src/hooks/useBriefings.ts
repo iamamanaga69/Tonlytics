@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useTerminalStore } from '@/store/terminalStore';
 import { supabase, isSupabaseReady } from '@/lib/supabase-client';
+import { apiFetch, isExternalApiConfigured } from '@/lib/api-client';
 import type { Briefing } from '@/types';
 
 export function useBriefings() {
@@ -16,8 +17,8 @@ export function useBriefings() {
     setError(null);
     
     try {
+      // === PATH 1: Direct Supabase reads (lowest latency, real-time capable) ===
       if (isSupabaseReady) {
-        // === REAL SUPABASE QUERY ===
         let query = supabase
           .from('briefings')
           .select('*')
@@ -37,29 +38,40 @@ export function useBriefings() {
         
         const { data, error: dbError } = await query;
         
-        if (dbError) {
-          throw new Error(dbError.message);
+        if (!dbError && data && data.length > 0) {
+          setBriefings(data);
+          return; // Success — Supabase delivered live data
         }
         
-        setBriefings(data || []);
-      } else {
-        // Fallback to API route (which uses dbService mock fallback)
-        const categoryParam = selectedCategory !== 'All' ? `category=${encodeURIComponent(selectedCategory)}` : '';
-        const searchParam = searchQuery ? `search=${encodeURIComponent(searchQuery)}` : '';
-        const queryParts = [categoryParam, searchParam].filter(Boolean);
-        const queryString = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
-        
-        const response = await fetch(`/api/briefings${queryString}`);
-        if (!response.ok) throw new Error(`Failed to load briefings: ${response.status}`);
-        
-        const data = await response.json();
-        if (data.success && Array.isArray(data.briefings)) {
-          setBriefings(data.briefings);
-        } else {
-          throw new Error(data.error || 'Invalid API data payload received');
+        // If Supabase returned empty or had an error, fall through to next path
+        if (dbError) {
+          console.warn('[useBriefings] Supabase direct query failed, trying fallback:', dbError.message);
         }
       }
+
+      // === PATH 2: Railway backend API or Next.js API route ===
+      // apiFetch auto-resolves to Railway if NEXT_PUBLIC_API_URL is set,
+      // otherwise falls back to the /api/briefings Next.js route
+      const categoryParam = selectedCategory !== 'All' ? `category=${encodeURIComponent(selectedCategory)}` : '';
+      const searchParam = searchQuery ? `search=${encodeURIComponent(searchQuery)}` : '';
+      const queryParts = [categoryParam, searchParam].filter(Boolean);
+      const queryString = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
+      
+      const data = await apiFetch<{ success?: boolean; briefings?: Briefing[]; data?: Briefing[] }>(
+        `/api/briefings${queryString}`,
+        { timeoutMs: 12_000 }
+      );
+
+      // Railway backend returns { success: true, data: [...] }
+      // Next.js route returns { success: true, briefings: [...] }
+      const items = data.briefings || data.data || [];
+      if (Array.isArray(items)) {
+        setBriefings(items);
+      } else {
+        throw new Error('Invalid API data payload received');
+      }
     } catch (err) {
+      console.error('[useBriefings] All data sources failed:', err);
       setError(err instanceof Error ? err.message : 'Database communication failure');
     } finally {
       if (showLoading) setIsLoading(false);

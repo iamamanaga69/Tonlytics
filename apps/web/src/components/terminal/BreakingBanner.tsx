@@ -2,36 +2,53 @@
 
 import { useEffect, useState } from 'react';
 import { supabase, isSupabaseReady } from '@/lib/supabase-client';
+import { apiFetch } from '@/lib/api-client';
+import type { Briefing } from '@/types';
 
 export default function BreakingBanner() {
   const [headlines, setHeadlines] = useState<string[]>([]);
 
   useEffect(() => {
     async function fetchHeadlines() {
-      if (!isSupabaseReady) {
-        setHeadlines([
-          'Latest TON updates will appear here when Supabase is connected.',
-          'Editorial coverage includes infrastructure, Mini Apps, DeFi, funding, and Telegram integrations.',
-        ]);
-        return;
+      // === PATH 1: Direct Supabase reads ===
+      if (isSupabaseReady) {
+        try {
+          const { data, error } = await supabase
+            .from('briefings')
+            .select('title')
+            .eq('is_published', true)
+            .order('published_at', { ascending: false })
+            .limit(8);
+
+          if (!error && data && data.length > 0) {
+            setHeadlines(data.map((b: { title: string }) => b.title));
+            return;
+          }
+        } catch {
+          // Fall through to API fallback
+        }
       }
 
+      // === PATH 2: Railway backend / Next.js API route ===
       try {
-        const { data, error } = await supabase
-          .from('briefings')
-          .select('title')
-          .eq('is_published', true)
-          .order('published_at', { ascending: false })
-          .limit(8);
-
-        if (!error && data && data.length > 0) {
-          setHeadlines(data.map((b: { title: string }) => b.title));
-        } else {
-          setHeadlines(['Following verified TON ecosystem sources for new developments.']);
+        const data = await apiFetch<{ success?: boolean; briefings?: Briefing[]; data?: Briefing[] }>(
+          '/api/briefings',
+          { timeoutMs: 8_000 }
+        );
+        const items = data.briefings || data.data || [];
+        if (items.length > 0) {
+          setHeadlines(items.slice(0, 8).map((b) => b.title));
+          return;
         }
       } catch {
-        setHeadlines(['Live TON feed is temporarily unavailable. Recent briefings remain readable.']);
+        // Fall through to static placeholder
       }
+
+      // === FALLBACK: Static placeholder headlines ===
+      setHeadlines([
+        'Following verified TON ecosystem sources for new developments.',
+        'Editorial coverage includes infrastructure, Mini Apps, DeFi, funding, and Telegram integrations.',
+      ]);
     }
 
     fetchHeadlines();

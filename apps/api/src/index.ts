@@ -8,7 +8,32 @@ import { getRedisConnection } from 'queues';
 const app = express();
 const port = env.PORT || 3005;
 
-app.use(cors());
+// CORS: Allow Vercel frontend, local dev, and configurable origins
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'https://tonlytics.vercel.app',
+];
+
+// Add custom FRONTEND_URL if configured on Railway
+if (process.env.FRONTEND_URL) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g. server-to-server, curl, mobile apps)
+    if (!origin) return callback(null, true);
+    // Allow any *.vercel.app subdomain
+    if (origin.endsWith('.vercel.app')) return callback(null, true);
+    // Allow explicitly listed origins
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    callback(null, false);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+}));
 app.use(express.json());
 
 // Logger middleware
