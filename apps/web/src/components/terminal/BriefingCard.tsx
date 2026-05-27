@@ -6,6 +6,7 @@ import { useTelegram } from '@/hooks/useTelegram';
 import type { Briefing } from '@/types';
 import { Bookmark, Clock, Eye, ShieldCheck } from 'lucide-react';
 import ImageWithFallback from './ImageWithFallback';
+import { getCredibilityLabel, getReadingTime, getRelativeTime, getSourceHost } from '@/lib/editorial-utils';
 
 interface BriefingCardProps {
   briefing: Briefing;
@@ -18,8 +19,8 @@ export default function BriefingCard({ briefing, compact = false }: BriefingCard
   const [isImageBroken, setIsImageBroken] = React.useState(false);
 
   const href = `/briefing/${briefing.slug}`;
-  const trustLabel = getTrustLabel(briefing);
-  const sourceHost = getHost(briefing.source_url);
+  const trustLabel = getCredibilityLabel(briefing);
+  const sourceHost = getSourceHost(briefing.source_url);
 
   const handleCardClick = () => {
     triggerHaptic('light');
@@ -36,6 +37,7 @@ export default function BriefingCard({ briefing, compact = false }: BriefingCard
           <ImageWithFallback
             src={briefing.image_url}
             alt={briefing.title}
+            fallbackLabel={briefing.category}
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
             onFallbackTriggered={() => setIsImageBroken(true)}
           />
@@ -99,41 +101,4 @@ export default function BriefingCard({ briefing, compact = false }: BriefingCard
   );
 }
 
-export function getRelativeTime(isoString: string): string {
-  try {
-    const past = new Date(isoString).getTime();
-    const diffMs = Date.now() - past;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays === 1) return 'Yesterday';
-    return `${diffDays}d ago`;
-  } catch {
-    return 'Recent';
-  }
-}
-
-export function getReadingTime(briefing: Briefing): number {
-  const words = `${briefing.title} ${briefing.briefing} ${briefing.why_it_matters} ${(briefing.key_takeaways || []).join(' ')}`.split(/\s+/).length;
-  return Math.max(1, Math.ceil(words / 220));
-}
-
-function getTrustLabel(briefing: Briefing): string {
-  const score = Math.round((briefing.confidence_score + briefing.source_quality_score) / 2);
-  if (score >= 95) return 'High trust';
-  if (score >= 85) return 'Verified';
-  return 'Review noted';
-}
-
-function getHost(url?: string): string {
-  if (!url) return '';
-  try {
-    return new URL(url).hostname.replace(/^www\./, '');
-  } catch {
-    return '';
-  }
-}
+export { getReadingTime, getRelativeTime };

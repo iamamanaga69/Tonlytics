@@ -7,7 +7,7 @@ interface SendMessageResponse {
   ok: boolean;
   result?: {
     message_id: number;
-    [key: string]: any;
+    [key: string]: unknown;
   };
   description?: string;
 }

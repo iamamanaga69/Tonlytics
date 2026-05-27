@@ -1,4 +1,14 @@
-export type BriefingCategory = 'Ecosystem' | 'Infrastructure' | 'Mini Apps' | 'DeFi' | 'Integration';
+export type BriefingCategory =
+  | 'Ecosystem'
+  | 'Infrastructure'
+  | 'Mini Apps'
+  | 'Telegram Apps'
+  | 'DeFi'
+  | 'Integration'
+  | 'Funding'
+  | 'Governance'
+  | 'Builders'
+  | 'AI';
 
 export type ModerationStatus = 'auto_approved' | 'pending_review' | 'flagged_discarded';
 
@@ -201,4 +211,3 @@ export interface FeedCache {
   expires_at: string;
   updated_at: string;
 }
-

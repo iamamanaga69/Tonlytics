@@ -55,7 +55,7 @@ Output JSON Schema:
   "title": "A concise, punchy, editorial title (max 70 characters). Focus on action.",
   "briefing": "A highly readable, professional summary of the update. Split into 1 or 2 dense paragraphs (max 400 characters total). Explain exactly what happened.",
   "why_it_matters": "A strategic explanation of the impact of this update (max 200 characters). Start with a punchy verb or insight.",
-  "category": "Must be exactly one of: Ecosystem, Infrastructure, Mini Apps, DeFi, Integration",
+  "category": "Must be exactly one of: Ecosystem, Infrastructure, Mini Apps, Telegram Apps, DeFi, Integration, Funding, Governance, Builders, AI",
   "tags": ["tag1", "tag2", "tag3"] (max 4 relevant tags, lowercase),
   
   "confidence_score": 95 (an integer from 0 to 100 rating the overall confidence and accuracy in the source content),

@@ -3,6 +3,7 @@ import { scraping } from './scraping';
 import { ai } from './ai';
 import { supabaseAdmin, isSupabaseConfigured } from 'database';
 import { fetchRssFeed, parseGithubReleases } from 'extraction';
+import { normalizeMediaUrl, verifyImageAccessibility } from 'media';
 import type { Briefing, RawUpdate } from 'types';
 import { logError, logInfo, logWarn } from 'telemetry';
 
@@ -124,10 +125,19 @@ export const news = {
 
       // 7. Local Thumbnail Optimization
       let localImageUrl: string | null = null;
+      let validatedSourceImage: string | undefined;
       const sourceImage = raw.overrideImageUrl || webMetadata.imageUrl;
       if (sourceImage) {
-        logInfo('[SERVICES/NEWS] Downloading thumbnail locally', { sourceImage });
-        localImageUrl = await scraping.saveImageLocally(sourceImage, finalSlug.slice(0, 50));
+        const normalizedImage = normalizeMediaUrl(sourceImage, canonicalUrl);
+        const isAccessibleImage = await verifyImageAccessibility(normalizedImage);
+
+        if (isAccessibleImage) {
+          validatedSourceImage = normalizedImage;
+          logInfo('[SERVICES/NEWS] Downloading validated thumbnail locally', { sourceImage: normalizedImage });
+          localImageUrl = await scraping.saveImageLocally(normalizedImage, finalSlug.slice(0, 50));
+        } else {
+          logWarn('[SERVICES/NEWS] Discarding inaccessible media URL', { sourceImage: normalizedImage });
+        }
       }
 
       // 8. Insert Briefing into Database
@@ -147,7 +157,7 @@ export const news = {
         hallucination_probability: enriched.hallucination_probability,
         source_quality_score: enriched.source_quality_score,
         moderation_status: enriched.moderation_status || 'auto_approved',
-        image_url: localImageUrl || sourceImage || undefined,
+        image_url: localImageUrl || validatedSourceImage || undefined,
         video_url: undefined,
         ecosystem_context: undefined,
         discussion_url: undefined,
@@ -168,7 +178,7 @@ export const news = {
       if (localImageUrl && finalBrief.id) {
         await db.insertMediaAsset({
           briefingId: finalBrief.id,
-          originalUrl: sourceImage!,
+          originalUrl: validatedSourceImage!,
           localPath: localImageUrl,
           mimeType: 'image/webp',
           fileSize: 0 // Will default to 0 if size check bypassed

@@ -13,16 +13,28 @@ const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const databaseUrl = process.env.DATABASE_URL || '';
 
 // Determine if we should use the real Supabase client
-export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
+export const isSupabaseAnonConfigured = !!(supabaseUrl && supabaseAnonKey);
+export const isSupabaseAdminConfigured = !!(supabaseUrl && serviceRoleKey);
+export const isSupabaseConfigured = !!(supabaseUrl && (supabaseAnonKey || serviceRoleKey));
 
-export const supabase = isSupabaseConfigured 
-  ? createClient(supabaseUrl, supabaseAnonKey) 
+export const supabase = isSupabaseConfigured
+  ? createClient(supabaseUrl, supabaseAnonKey || serviceRoleKey)
   : null;
 
 // Administrative client for background cron workers (bypasses RLS if needed)
-export const supabaseAdmin = isSupabaseConfigured && serviceRoleKey
+export const supabaseAdmin = isSupabaseAdminConfigured
   ? createClient(supabaseUrl, serviceRoleKey)
   : null;
+
+const supabaseReader = supabaseAdmin || supabase;
+
+function canUseLocalFallback(): boolean {
+  return process.env.ALLOW_MOCK_DATA === 'true' || (!isSupabaseConfigured && process.env.NODE_ENV !== 'production');
+}
+
+function logDbError(message: string, error?: unknown): void {
+  console.error(message, error || '');
+}
 
 // Initialize Drizzle ORM Pool
 let pgPool: Pool | null = null;
@@ -250,15 +262,71 @@ let localMockBriefings = [...MOCK_BRIEFINGS];
 let localRawUpdates: RawUpdate[] = [];
 let localLogs: AutomationLog[] = [];
 let localModerationLogs: ModerationLog[] = [];
+const localFeedCache = new Map<string, { data: unknown; expiresAt: number }>();
 
 // ==========================================
 // DB SERVICE INTERFACE (Backwards Compatibility)
 // ==========================================
 export const dbService = {
+  // --- feed cache helpers ---
+  async getFeedCache<T = unknown>(key: string): Promise<T | null> {
+    if (isSupabaseConfigured && supabaseAdmin) {
+      const { data, error } = await supabaseAdmin
+        .from('feed_cache')
+        .select('data, expires_at')
+        .eq('key', key)
+        .maybeSingle();
+
+      if (!error && data && new Date(data.expires_at).getTime() > Date.now()) {
+        return data.data as T;
+      }
+    }
+
+    const local = localFeedCache.get(key);
+    if (local && local.expiresAt > Date.now()) {
+      return local.data as T;
+    }
+
+    if (local) localFeedCache.delete(key);
+    return null;
+  },
+
+  async setFeedCache(key: string, data: unknown, ttlSeconds: number): Promise<void> {
+    const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
+
+    if (isSupabaseConfigured && supabaseAdmin) {
+      const { error } = await supabaseAdmin
+        .from('feed_cache')
+        .upsert([{ key, data, expires_at: expiresAt, updated_at: new Date().toISOString() }], { onConflict: 'key' });
+
+      if (!error) return;
+      logDbError('[DB] Failed to write feed cache.', error);
+    }
+
+    localFeedCache.set(key, { data, expiresAt: new Date(expiresAt).getTime() });
+  },
+
+  async deleteFeedCachePrefix(prefix: string): Promise<void> {
+    if (isSupabaseConfigured && supabaseAdmin) {
+      const { data, error } = await supabaseAdmin
+        .from('feed_cache')
+        .select('key')
+        .like('key', `${prefix}%`);
+
+      if (!error && data && data.length > 0) {
+        await supabaseAdmin.from('feed_cache').delete().in('key', data.map((row: { key: string }) => row.key));
+      }
+    }
+
+    for (const key of localFeedCache.keys()) {
+      if (key.startsWith(prefix)) localFeedCache.delete(key);
+    }
+  },
+
   // --- briefings query ---
   async getBriefings(options?: { category?: BriefingCategory; search?: string }): Promise<Briefing[]> {
-    if (isSupabaseConfigured && supabase) {
-      let query = supabase
+    if (isSupabaseConfigured && supabaseReader) {
+      let query = supabaseReader
         .from('briefings')
         .select('*')
         .eq('is_published', true)
@@ -274,10 +342,15 @@ export const dbService = {
       }
       
       const { data, error } = await query;
-      if (!error && data) return data as Briefing[];
-      console.error('[DB] Supabase query failed, falling back to mock:', error);
+      if (!error && data) {
+        console.info(`[DB] Supabase briefings query returned ${data.length} records.`);
+        return data as Briefing[];
+      }
+      logDbError('[DB] Supabase briefings query failed.', error);
+      if (!canUseLocalFallback()) return [];
     }
-    
+    if (!canUseLocalFallback()) return [];
+
     let result = localMockBriefings.filter(b => b.is_published && b.moderation_status === 'auto_approved');
     
     if (options?.category) {
@@ -299,25 +372,33 @@ export const dbService = {
 
   // --- single briefing by slug ---
   async getBriefingBySlug(slug: string): Promise<Briefing | null> {
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.from('briefings').select('*').eq('slug', slug).single();
+    if (isSupabaseConfigured && supabaseReader) {
+      const { data, error } = await supabaseReader
+        .from('briefings')
+        .select('*')
+        .eq('slug', slug)
+        .eq('is_published', true)
+        .eq('moderation_status', 'auto_approved')
+        .single();
       if (!error && data) return data as Briefing;
+      if (!canUseLocalFallback()) return null;
     }
-    
+    if (!canUseLocalFallback()) return null;
+
     const mock = localMockBriefings.find(b => b.slug === slug);
     return mock || null;
   },
 
   // --- increment view count ---
   async incrementBriefingViews(id: string): Promise<void> {
-    if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.rpc('increment_views', { briefing_id: id });
+    if (isSupabaseConfigured && supabaseReader) {
+      const { error } = await supabaseReader.rpc('increment_views', { briefing_id: id });
       if (!error) return;
       
       const briefing = await this.getBriefingBySlug(id);
       if (briefing) {
         const nextViews = briefing.views_count + 1;
-        await supabase.from('briefings').update({ views_count: nextViews }).eq('id', briefing.id);
+        await supabaseReader.from('briefings').update({ views_count: nextViews }).eq('id', briefing.id);
       }
       return;
     }
@@ -333,11 +414,16 @@ export const dbService = {
 
   // --- sources list ---
   async getSources(): Promise<Source[]> {
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.from('sources').select('*').eq('is_active', true);
-      if (!error && data) return data as Source[];
+    if (isSupabaseConfigured && supabaseReader) {
+      const { data, error } = await supabaseReader.from('sources').select('*').eq('is_active', true).order('reliability_score', { ascending: false });
+      if (!error && data) {
+        console.info(`[DB] Supabase sources query returned ${data.length} active sources.`);
+        return data as Source[];
+      }
+      logDbError('[DB] Supabase sources query failed.', error);
+      if (!canUseLocalFallback()) return [];
     }
-    return MOCK_SOURCES;
+    return canUseLocalFallback() ? MOCK_SOURCES : [];
   },
 
   // --- insert raw updates (Ingest) ---
@@ -348,10 +434,24 @@ export const dbService = {
         status: 'pending',
         retry_count: 0
       }));
-      const { data, error } = await supabaseAdmin.from('raw_updates').insert(payload).select();
-      if (!error && data) return data.length;
+      const { data, error } = await supabaseAdmin
+        .from('raw_updates')
+        .upsert(payload, { onConflict: 'source_url', ignoreDuplicates: true })
+        .select();
+      if (!error && data) {
+        console.info(`[DB] raw_updates insert completed: requested=${updates.length}, inserted=${data.length}.`);
+        return data.length;
+      }
+      logDbError('[DB] Failed to insert raw_updates into Supabase.', error);
+      return 0;
     }
-    
+
+    if (isSupabaseConfigured && !supabaseAdmin) {
+      logDbError('[DB] Cannot insert raw_updates: SUPABASE_SERVICE_ROLE_KEY is missing for backend write access.');
+      return 0;
+    }
+    if (!canUseLocalFallback()) return 0;
+
     const startCount = localRawUpdates.length;
     updates.forEach(u => {
       if (!localRawUpdates.some(x => x.source_url === u.source_url)) {
@@ -367,18 +467,84 @@ export const dbService = {
     return localRawUpdates.length - startCount;
   },
 
-  // --- get pending raw updates ---
-  async getPendingRawUpdates(limit = 10): Promise<RawUpdate[]> {
+  // --- upsert a single raw update and return the persisted record ---
+  async upsertRawUpdate(update: Omit<RawUpdate, 'id' | 'retry_count' | 'created_at'>): Promise<{ record: RawUpdate | null; inserted: boolean }> {
     if (isSupabaseConfigured && supabaseAdmin) {
+      const payload = {
+        ...update,
+        retry_count: 0
+      };
+
       const { data, error } = await supabaseAdmin
         .from('raw_updates')
+        .upsert([payload], { onConflict: 'source_url', ignoreDuplicates: true })
+        .select()
+        .maybeSingle();
+
+      if (!error && data) {
+        console.info(`[DB] raw_updates upsert inserted source_url=${update.source_url}`);
+        return { record: data as RawUpdate, inserted: true };
+      }
+
+      if (error) {
+        logDbError('[DB] raw_updates upsert failed.', error);
+        return { record: null, inserted: false };
+      }
+
+      const existing = await supabaseAdmin
+        .from('raw_updates')
         .select('*')
-        .eq('status', 'pending')
+        .eq('source_url', update.source_url)
+        .maybeSingle();
+
+      if (existing.error) {
+        logDbError('[DB] raw_updates duplicate lookup failed.', existing.error);
+        return { record: null, inserted: false };
+      }
+
+      return { record: existing.data as RawUpdate | null, inserted: false };
+    }
+
+    if (isSupabaseConfigured && !supabaseAdmin) {
+      logDbError('[DB] Cannot upsert raw_update: SUPABASE_SERVICE_ROLE_KEY is missing for backend write access.');
+      return { record: null, inserted: false };
+    }
+
+    if (!canUseLocalFallback()) return { record: null, inserted: false };
+
+    const existing = localRawUpdates.find(x => x.source_url === update.source_url);
+    if (existing) return { record: existing, inserted: false };
+
+    const record: RawUpdate = {
+      ...update,
+      id: `raw-${Math.random().toString(36).slice(2, 9)}`,
+      retry_count: 0,
+      created_at: new Date().toISOString()
+    };
+    localRawUpdates.push(record);
+    return { record, inserted: true };
+  },
+
+  // --- get pending raw updates ---
+  async getPendingRawUpdates(limit = 10): Promise<RawUpdate[]> {
+    if (isSupabaseConfigured && supabaseReader) {
+      const { data, error } = await supabaseReader
+        .from('raw_updates')
+        .select('*')
+        .in('status', ['pending', 'failed'])
+        .lt('retry_count', 3)
         .order('publish_date', { ascending: false })
         .limit(limit);
-      if (!error && data) return data as RawUpdate[];
+      if (!error && data) {
+        console.info(`[DB] Pending raw_updates query returned ${data.length} records.`);
+        return data as RawUpdate[];
+      }
+      logDbError('[DB] Pending raw_updates query failed.', error);
+      if (!canUseLocalFallback()) return [];
     }
-    return localRawUpdates.filter(r => r.status === 'pending').slice(0, limit);
+    return canUseLocalFallback()
+      ? localRawUpdates.filter(r => (r.status === 'pending' || r.status === 'failed') && r.retry_count < 3).slice(0, limit)
+      : [];
   },
 
   // --- update raw update status ---
@@ -387,9 +553,17 @@ export const dbService = {
       const payload: Partial<RawUpdate> = { status };
       if (retryCount !== undefined) payload.retry_count = retryCount;
       
-      await supabaseAdmin.from('raw_updates').update(payload).eq('id', id);
+      const { error } = await supabaseAdmin.from('raw_updates').update(payload).eq('id', id);
+      if (error) logDbError(`[DB] Failed to update raw_update status for ${id}.`, error);
       return;
     }
+
+    if (isSupabaseConfigured && !supabaseAdmin) {
+      logDbError('[DB] Cannot update raw_update status: SUPABASE_SERVICE_ROLE_KEY is missing for backend write access.');
+      return;
+    }
+
+    if (!canUseLocalFallback()) return;
     
     const idx = localRawUpdates.findIndex(r => r.id === id);
     if (idx !== -1) {
@@ -404,8 +578,39 @@ export const dbService = {
   // --- insert processed briefing (Publish) ---
   async insertBriefing(briefing: Omit<Briefing, 'id' | 'views_count' | 'created_at'>): Promise<Briefing> {
     if (isSupabaseConfigured && supabaseAdmin) {
-      const { data, error } = await supabaseAdmin.from('briefings').insert([briefing]).select().single();
-      if (!error && data) return data as Briefing;
+      const existingBySource = briefing.source_url
+        ? await supabaseAdmin.from('briefings').select('*').eq('source_url', briefing.source_url).maybeSingle()
+        : { data: null, error: null };
+
+      if (existingBySource.error) {
+        logDbError('[DB] Briefing source_url duplicate lookup failed.', existingBySource.error);
+      }
+
+      if (existingBySource.data) {
+        console.info(`[DB] Briefing already exists for source_url=${briefing.source_url}.`);
+        return existingBySource.data as Briefing;
+      }
+
+      const { data, error } = await supabaseAdmin
+        .from('briefings')
+        .upsert([briefing], { onConflict: 'slug' })
+        .select()
+        .single();
+      if (!error && data) {
+        console.info(`[DB] Briefing persisted: ${data.title} (${data.id}).`);
+        await this.deleteFeedCachePrefix('briefings:');
+        return data as Briefing;
+      }
+      logDbError('[DB] Failed to persist briefing into Supabase.', error);
+      throw new Error(error?.message || 'Failed to persist briefing into Supabase');
+    }
+
+    if (isSupabaseConfigured && !supabaseAdmin) {
+      throw new Error('SUPABASE_SERVICE_ROLE_KEY is required to insert briefings from backend services.');
+    }
+
+    if (!canUseLocalFallback()) {
+      throw new Error('Supabase service role is required to insert briefings in production');
     }
     
     const newBriefing: Briefing = {
@@ -415,13 +620,14 @@ export const dbService = {
       created_at: new Date().toISOString()
     };
     localMockBriefings.unshift(newBriefing);
+    await this.deleteFeedCachePrefix('briefings:');
     return newBriefing;
   },
 
   // --- get briefings pending Telegram Broadcast ---
   async getBriefingsPendingTelegram(limit = 5): Promise<Briefing[]> {
-    if (isSupabaseConfigured && supabaseAdmin) {
-      const { data, error } = await supabaseAdmin
+    if (isSupabaseConfigured && supabaseReader) {
+      const { data, error } = await supabaseReader
         .from('briefings')
         .select('*')
         .eq('is_published', true)
@@ -430,17 +636,22 @@ export const dbService = {
         .order('published_at', { ascending: true })
         .limit(limit);
       if (!error && data) return data as Briefing[];
+      logDbError('[DB] Telegram pending briefings query failed.', error);
+      if (!canUseLocalFallback()) return [];
     }
-    return localMockBriefings.filter(b => b.is_published && b.moderation_status === 'auto_approved' && !b.telegram_posted).slice(0, limit);
+    return canUseLocalFallback()
+      ? localMockBriefings.filter(b => b.is_published && b.moderation_status === 'auto_approved' && !b.telegram_posted).slice(0, limit)
+      : [];
   },
 
   // --- mark Telegram posted status ---
   async markBriefingAsTelegramPosted(id: string, messageId: number): Promise<void> {
     if (isSupabaseConfigured && supabaseAdmin) {
-      await supabaseAdmin.from('briefings').update({
+      const { error } = await supabaseAdmin.from('briefings').update({
         telegram_posted: true,
         telegram_message_id: messageId
       }).eq('id', id);
+      if (error) logDbError(`[DB] Failed to mark briefing ${id} as Telegram-posted.`, error);
       return;
     }
     
@@ -470,30 +681,34 @@ export const dbService = {
 
   // --- get pending review briefings ---
   async getPendingReviewBriefings(): Promise<Briefing[]> {
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase
+    if (isSupabaseConfigured && supabaseReader) {
+      const { data, error } = await supabaseReader
         .from('briefings')
         .select('*')
         .eq('moderation_status', 'pending_review')
         .order('published_at', { ascending: false });
       if (!error && data) return data as Briefing[];
+      logDbError('[DB] Pending review briefings query failed.', error);
+      if (!canUseLocalFallback()) return [];
     }
     
-    return localMockBriefings.filter(b => b.moderation_status === 'pending_review');
+    return canUseLocalFallback() ? localMockBriefings.filter(b => b.moderation_status === 'pending_review') : [];
   },
 
   // --- get moderation logs or archive ---
   async getModerationArchive(status: 'auto_approved' | 'flagged_discarded'): Promise<Briefing[]> {
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase
+    if (isSupabaseConfigured && supabaseReader) {
+      const { data, error } = await supabaseReader
         .from('briefings')
         .select('*')
         .eq('moderation_status', status)
         .order('published_at', { ascending: false });
       if (!error && data) return data as Briefing[];
+      logDbError('[DB] Moderation archive query failed.', error);
+      if (!canUseLocalFallback()) return [];
     }
     
-    return localMockBriefings.filter(b => b.moderation_status === status);
+    return canUseLocalFallback() ? localMockBriefings.filter(b => b.moderation_status === status) : [];
   },
 
   // --- update briefing moderation status ---
@@ -510,8 +725,15 @@ export const dbService = {
         .eq('id', id)
         .select()
         .single();
-      if (!error && data) return data as Briefing;
+      if (!error && data) {
+        await this.deleteFeedCachePrefix('briefings:');
+        return data as Briefing;
+      }
+      logDbError(`[DB] Failed to update briefing moderation status for ${id}.`, error);
+      return null;
     }
+
+    if (!canUseLocalFallback()) return null;
 
     const idx = localMockBriefings.findIndex(b => b.id === id);
     if (idx !== -1) {
@@ -521,6 +743,7 @@ export const dbService = {
         is_published: isPublished,
         ...fields
       };
+      await this.deleteFeedCachePrefix('briefings:');
       return localMockBriefings[idx];
     }
     return null;
@@ -557,9 +780,10 @@ export const dbService = {
 
   // --- get media asset by briefing ---
   async getMediaAssetByBriefing(briefingId: string): Promise<MediaAsset | null> {
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.from('media_assets').select('*').eq('briefing_id', briefingId).maybeSingle();
+    if (isSupabaseConfigured && supabaseReader) {
+      const { data, error } = await supabaseReader.from('media_assets').select('*').eq('briefing_id', briefingId).maybeSingle();
       if (!error && data) return data as MediaAsset;
+      if (!canUseLocalFallback()) return null;
     }
     return null;
   },

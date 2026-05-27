@@ -113,10 +113,10 @@ export async function GET(request: Request) {
     const duration = Date.now() - startTime;
     const errorMsg = error instanceof Error ? error.message : 'Unknown cron trigger failure';
     
-    logError('[API CRON PROCESS] Failed to enqueue AI tasks:', error);
+    logError('[API CRON PROCESS] Failed to enqueue AI tasks:', error, { duration_ms: duration });
     
     return NextResponse.json(
-      { error: errorMsg },
+      { error: errorMsg, duration_ms: duration },
       { status: 500 }
     );
   }

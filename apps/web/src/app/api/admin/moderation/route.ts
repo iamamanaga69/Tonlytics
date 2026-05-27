@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { validateAdminRequest } from '@/lib/auth';
 import { dbService } from '@/lib/db/supabase';
+import type { Briefing } from '@/types';
 
 /**
  * GET /api/admin/moderation
@@ -64,7 +65,7 @@ export async function POST(request: Request) {
     const nextStatus = action === 'approve' ? 'auto_approved' : 'flagged_discarded';
     const isPublished = action === 'approve';
 
-    const fieldsToUpdate: any = {};
+    const fieldsToUpdate: Partial<Briefing> = {};
     if (action === 'approve') {
       if (title !== undefined) fieldsToUpdate.title = title;
       if (briefing !== undefined) fieldsToUpdate.briefing = briefing;

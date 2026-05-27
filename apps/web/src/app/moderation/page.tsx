@@ -1,13 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import NextLink from 'next/link';
 import { 
   ShieldCheck, 
   Check, 
   Trash2, 
-  AlertTriangle, 
-  Clock, 
-  Eye, 
   ExternalLink, 
   Loader2, 
   ArrowLeft, 
@@ -16,11 +14,10 @@ import {
   ThumbsUp,
   Sliders,
   Sparkles,
-  Link,
+  Link as LinkIcon,
   Plus,
   Trash
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useTelegram } from '@/hooks/useTelegram';
 import type { Briefing } from '@/types';
 
@@ -40,9 +37,17 @@ export default function ModerationPortal() {
   const [curatedBriefing, setCuratedBriefing] = useState('');
   const [curatedWhyItMatters, setCuratedWhyItMatters] = useState('');
   const [curatedTakeaways, setCuratedTakeaways] = useState<string[]>([]);
+
+  const selectBriefingItem = useCallback((briefing: Briefing) => {
+    setSelectedBriefing(briefing);
+    setCuratedTitle(briefing.title);
+    setCuratedBriefing(briefing.briefing);
+    setCuratedWhyItMatters(briefing.why_it_matters);
+    setCuratedTakeaways(briefing.key_takeaways || ['']);
+  }, []);
   
   // Load data from API endpoints
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
       // 1. Fetch pending reviews
@@ -68,19 +73,14 @@ export default function ModerationPortal() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectBriefingItem]);
 
   useEffect(() => {
-    loadData();
-  }, []);
-
-  const selectBriefingItem = (briefing: Briefing) => {
-    setSelectedBriefing(briefing);
-    setCuratedTitle(briefing.title);
-    setCuratedBriefing(briefing.briefing);
-    setCuratedWhyItMatters(briefing.why_it_matters);
-    setCuratedTakeaways(briefing.key_takeaways || ['']);
-  };
+    const timer = window.setTimeout(() => {
+      void loadData();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadData]);
 
   const handleSelectBriefing = (briefing: Briefing) => {
     selectBriefingItem(briefing);
@@ -111,7 +111,14 @@ export default function ModerationPortal() {
     triggerHaptic('medium');
     
     try {
-      const payload: any = {
+      const payload: {
+        briefingId: string;
+        action: 'approve' | 'discard';
+        title?: string;
+        briefing?: string;
+        why_it_matters?: string;
+        key_takeaways?: string[];
+      } = {
         briefingId: selectedBriefing.id,
         action
       };
@@ -221,12 +228,12 @@ export default function ModerationPortal() {
       {/* 1. HEADER */}
       <header className="w-full bg-editorial-card border-b border-editorial-border py-4 px-4 md:px-8 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
-          <a
+          <NextLink
             href="/"
             className="w-7 h-7 bg-editorial-card border border-editorial-border flex items-center justify-center text-editorial-text-subtle hover:text-foreground transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-          </a>
+          </NextLink>
           <span className="font-black text-sm md:text-base tracking-widest font-mono text-foreground uppercase">
             Tonlytics
           </span>
@@ -517,7 +524,7 @@ export default function ModerationPortal() {
 
                   {/* Why It Matters Edit */}
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[8px] font-mono text-slate-500 uppercase font-bold">"Why It Matters" strategic ecosystem analysis</label>
+                    <label className="text-[8px] font-mono text-slate-500 uppercase font-bold">&quot;Why It Matters&quot; strategic ecosystem analysis</label>
                     <textarea
                       disabled={activeTab !== 'pending'}
                       value={curatedWhyItMatters}
@@ -583,7 +590,7 @@ export default function ModerationPortal() {
                         rel="noopener noreferrer"
                         className="flex items-center gap-1 text-[9px] font-bold text-sky-400 hover:text-sky-300 font-mono tracking-wider"
                       >
-                        <Link className="w-3.5 h-3.5 text-sky-500" />
+                        <LinkIcon className="w-3.5 h-3.5 text-sky-500" />
                         <span>Canonical Document</span>
                         <ExternalLink className="w-2.5 h-2.5" />
                       </a>

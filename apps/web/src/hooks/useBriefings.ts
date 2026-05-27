@@ -1,12 +1,13 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useTerminalStore } from '@/store/terminalStore';
 import { supabase, isSupabaseReady } from '@/lib/supabase-client';
-import { apiFetch, isExternalApiConfigured } from '@/lib/api-client';
+import { apiFetch } from '@/lib/api-client';
 import type { Briefing } from '@/types';
 
-export function useBriefings() {
-  const [briefings, setBriefings] = useState<Briefing[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+export function useBriefings(options: { initialBriefings?: Briefing[] } = {}) {
+  const initialBriefings = options.initialBriefings || [];
+  const [briefings, setBriefings] = useState<Briefing[]>(initialBriefings);
+  const [isLoading, setIsLoading] = useState<boolean>(initialBriefings.length === 0);
   const [error, setError] = useState<string | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   
@@ -38,7 +39,7 @@ export function useBriefings() {
         
         const { data, error: dbError } = await query;
         
-        if (!dbError && data && data.length > 0) {
+        if (!dbError && data) {
           setBriefings(data);
           return; // Success — Supabase delivered live data
         }
